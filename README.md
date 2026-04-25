@@ -67,33 +67,6 @@ src-tauri/src/providers/
 
 当前这两个 Provider 已保留统一适配器入口，但尚未实现真实查询逻辑。
 
-## 本地运行
-
-在项目目录下执行：
-
-```powershell
-$env:PATH="C:\Users\a\.cargo\bin;$env:PATH"
-npm run tauri dev
-```
-
-如果只想直接运行已构建的调试版：
-
-```powershell
-D:\Tangerin\Personal\Code\Agent_Limit\src-tauri\target\debug\agent-limit.exe
-```
-
-## 构建
-
-```powershell
-$env:PATH="C:\Users\a\.cargo\bin;$env:PATH"
-npm exec tauri build -- --debug
-```
-
-构建完成后，可执行文件位于：
-
-```text
-src-tauri\target\debug\agent-limit.exe
-```
 
 ## 开发说明
 

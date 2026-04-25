@@ -84,5 +84,6 @@ src-tauri/src/providers/
 - 接入 OpenRouter 余额查询
 - 增加托盘模式
 - 增加自动刷新
+- 前端界面优化
 - 增加历史记录与变化趋势
 - 增加多账号 / 多 Provider 切换

@@ -40,13 +40,68 @@
 - `Vite`
 - `Rust`
 
+## 运行方式
+
+### 普通用户（推荐）
+
+1. 前往项目的 Releases 页面，下载 Windows 安装包（NSIS，通常是 `*.exe`）。
+2. 双击安装并启动。
+3. 首次运行可能会自动安装/拉取 WebView2 运行时（Tauri 配置为静默下载），需要联网一次。
+4. 若页面提示未登录/无数据：请先在本机完成 Codex 登录（确保存在 `C:\Users\<你的用户名>\.codex\...` 相关文件），再回到软件里点“刷新”。
+
+> 如果你拿到的是便携版单文件（`Agent Limit.exe`），直接双击运行即可。
+
+### 开发者（从源码运行/打包）
+
+- 开发运行：
+
+```bash
+npm install
+npm run tauri dev
+```
+
+- 构建安装包（NSIS）：
+
+```bash
+npm run build:installer
+```
+
+产物一般在：`src-tauri\target\release\bundle\nsis\`。
+
+- 同时导出根目录可执行文件/安装包（便于发给其他人直接运行）：
+
+```bash
+npm run build:root-exe
+```
+
+会在仓库根目录生成：`Agent Limit.exe` 与 `Agent Limit Setup.exe`。
+
 ## 目录结构
 
 ```text
-src/                前端界面
-src-tauri/          Tauri / Rust 后端
-src-tauri/src/providers/
-                     Provider 适配器
+scripts/                 打包辅助脚本（导出根目录 exe / 安装包等）
+src/                     前端（React）
+    components/             UI 组件
+    lib/                    前端与后端交互封装（invoke / API 等）
+    types/                  统一类型定义（Provider 数据模型等）
+    App.tsx                 主界面
+    main.tsx                前端入口
+    styles.css              全局样式
+
+src-tauri/                Tauri v2 / Rust 后端
+    src/
+        providers/             Provider 适配器（一期 codex + 预留入口）
+        main.rs                Tauri 入口与命令注册
+        lib.rs                 后端对外接口（commands 等）
+        models.rs              统一数据模型
+        error.rs               错误定义
+        environment.rs         Windows 环境/路径相关处理
+    capabilities/            Tauri capabilities 配置
+    gen/schemas/             Tauri schema（自动生成）
+
+index.html                Vite 页面模板
+vite.config.ts            Vite 配置
+tsconfig*.json            TypeScript 配置
 ```
 
 ## 已支持能力
@@ -62,8 +117,8 @@ src-tauri/src/providers/
 
 ### 预留 Provider
 
-- `github-copilot`
-- `openrouter`
+- `Github Copilot`
+- `OpenRouter`
 
 当前这两个 Provider 已保留统一适配器入口，但尚未实现真实查询逻辑。
 

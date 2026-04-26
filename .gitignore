@@ -4,3 +4,5 @@ target/
 src-tauri/target/
 src-tauri/gen/
 *.log
+Agent Limit.exe
+Agent Limit Setup.exe

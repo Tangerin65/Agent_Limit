@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc && vite build",
+    "build:installer": "npm exec tauri build",
+    "build:root-exe": "npm exec tauri build && powershell -ExecutionPolicy Bypass -File .\\scripts\\export-root-exe.ps1",
     "preview": "vite preview",
     "tauri": "tauri"
   },

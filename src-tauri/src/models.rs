@@ -64,3 +64,32 @@ pub struct ProviderSnapshot {
     pub raw_meta: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebView2Status {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub registry_path: Option<String>,
+    pub checked_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexEnvironmentStatus {
+    pub root_path: String,
+    pub auth_path: String,
+    pub config_path: String,
+    pub sessions_root: String,
+    pub auth_exists: bool,
+    pub config_exists: bool,
+    pub sessions_exists: bool,
+    pub session_file_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentDiagnostics {
+    pub webview2: WebView2Status,
+    pub codex: CodexEnvironmentStatus,
+    pub warnings: Vec<String>,
+}

@@ -51,3 +51,26 @@ export interface ProviderSnapshot {
   rawMeta?: Record<string, unknown> | null;
 }
 
+export interface WebView2Status {
+  installed: boolean;
+  version?: string | null;
+  registryPath?: string | null;
+  checkedPaths: string[];
+}
+
+export interface CodexEnvironmentStatus {
+  rootPath: string;
+  authPath: string;
+  configPath: string;
+  sessionsRoot: string;
+  authExists: boolean;
+  configExists: boolean;
+  sessionsExists: boolean;
+  sessionFileCount: number;
+}
+
+export interface EnvironmentDiagnostics {
+  webview2: WebView2Status;
+  codex: CodexEnvironmentStatus;
+  warnings: string[];
+}

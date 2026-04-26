@@ -23,3 +23,5 @@ thiserror = "2"
 toml = "0.8"
 walkdir = "2"
 
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"

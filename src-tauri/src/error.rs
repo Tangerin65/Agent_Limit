@@ -10,6 +10,8 @@ pub enum AppError {
     Json(#[from] serde_json::Error),
     #[error("TOML parse error: {0}")]
     Toml(#[from] toml::de::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
     #[error("JWT decode error: {0}")]
     JwtDecode(String),
 }
@@ -25,4 +27,3 @@ impl From<String> for AppError {
         Self::Message(value)
     }
 }
-

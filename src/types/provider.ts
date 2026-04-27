@@ -69,8 +69,22 @@ export interface CodexEnvironmentStatus {
   sessionFileCount: number;
 }
 
+export interface CopilotEnvironmentStatus {
+  rootPath: string;
+  appsPath: string;
+  oauthPath: string;
+  sessionRoot: string;
+  vscodeStorageRoot: string;
+  appsExists: boolean;
+  oauthExists: boolean;
+  sessionExists: boolean;
+  vscodeStorageExists: boolean;
+  sessionFileCount: number;
+}
+
 export interface EnvironmentDiagnostics {
   webview2: WebView2Status;
   codex: CodexEnvironmentStatus;
+  copilot: CopilotEnvironmentStatus;
   warnings: string[];
 }

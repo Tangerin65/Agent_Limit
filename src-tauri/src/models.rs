@@ -88,8 +88,24 @@ pub struct CodexEnvironmentStatus {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CopilotEnvironmentStatus {
+    pub root_path: String,
+    pub apps_path: String,
+    pub oauth_path: String,
+    pub session_root: String,
+    pub vscode_storage_root: String,
+    pub apps_exists: bool,
+    pub oauth_exists: bool,
+    pub session_exists: bool,
+    pub vscode_storage_exists: bool,
+    pub session_file_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EnvironmentDiagnostics {
     pub webview2: WebView2Status,
     pub codex: CodexEnvironmentStatus,
+    pub copilot: CopilotEnvironmentStatus,
     pub warnings: Vec<String>,
 }

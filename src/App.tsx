@@ -12,12 +12,44 @@ import type {
 
 const DEFAULT_PROVIDER = "codex";
 
-function formatPercent(value?: number | null) {
+function formatQuotaValue(value?: number | null, unit?: string | null) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "--";
   }
 
-  return `${value.toFixed(1)}%`;
+  if (unit === "%") {
+    return `${value.toFixed(1)}%`;
+  }
+
+  if (unit === "requests") {
+    return `${Math.round(value)} requests`;
+  }
+
+  return value.toFixed(1);
+}
+
+function formatQuotaMeta(
+  used?: number | null,
+  total?: number | null,
+  unit?: string | null
+) {
+  if (typeof used !== "number" || Number.isNaN(used)) {
+    return "--";
+  }
+
+  if (unit === "%") {
+    return `Used ${used.toFixed(1)}%`;
+  }
+
+  if (unit === "requests") {
+    if (typeof total === "number" && !Number.isNaN(total)) {
+      return `Used ${Math.round(used)} / ${Math.round(total)} requests`;
+    }
+
+    return `Used ${Math.round(used)} requests`;
+  }
+
+  return `Used ${used.toFixed(1)}`;
 }
 
 function formatDateTime(value?: string | null) {
@@ -326,10 +358,17 @@ export default function App() {
             <article className="metric-card metric-card--remaining">
               <div className="info-card__label">Remaining</div>
               <div className="metric-card__value metric-card__value--remaining">
-                {formatPercent(selectedSnapshot?.quota?.remaining)}
+                {formatQuotaValue(
+                  selectedSnapshot?.quota?.remaining,
+                  selectedSnapshot?.quota?.unit
+                )}
               </div>
               <p className="metric-card__meta">
-                Used {formatPercent(selectedSnapshot?.quota?.used)}
+                {formatQuotaMeta(
+                  selectedSnapshot?.quota?.used,
+                  selectedSnapshot?.quota?.total,
+                  selectedSnapshot?.quota?.unit
+                )}
               </p>
             </article>
 
@@ -421,6 +460,26 @@ export default function App() {
                 <dt>Sessions Root</dt>
                 <dd>{environmentDiagnostics?.codex.sessionsRoot ?? "--"}</dd>
               </div>
+              <div>
+                <dt>Copilot Apps</dt>
+                <dd>{formatPresence(environmentDiagnostics?.copilot.appsExists ?? false)}</dd>
+              </div>
+              <div>
+                <dt>Copilot OAuth</dt>
+                <dd>{formatPresence(environmentDiagnostics?.copilot.oauthExists ?? false)}</dd>
+              </div>
+              <div>
+                <dt>Copilot Session Files</dt>
+                <dd>{environmentDiagnostics?.copilot.sessionFileCount ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Copilot Apps Path</dt>
+                <dd>{environmentDiagnostics?.copilot.appsPath ?? "--"}</dd>
+              </div>
+              <div>
+                <dt>Copilot Session Root</dt>
+                <dd>{environmentDiagnostics?.copilot.sessionRoot ?? "--"}</dd>
+              </div>
             </dl>
           </article>
 
@@ -481,11 +540,30 @@ export default function App() {
               </div>
               <div>
                 <dt>Used</dt>
-                <dd>{formatPercent(selectedSnapshot?.quota?.used)}</dd>
+                <dd>
+                  {formatQuotaValue(
+                    selectedSnapshot?.quota?.used,
+                    selectedSnapshot?.quota?.unit
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Remaining</dt>
-                <dd>{formatPercent(selectedSnapshot?.quota?.remaining)}</dd>
+                <dd>
+                  {formatQuotaValue(
+                    selectedSnapshot?.quota?.remaining,
+                    selectedSnapshot?.quota?.unit
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Total</dt>
+                <dd>
+                  {formatQuotaValue(
+                    selectedSnapshot?.quota?.total,
+                    selectedSnapshot?.quota?.unit
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Reset Time</dt>

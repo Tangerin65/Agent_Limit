@@ -2,13 +2,16 @@ use std::path::PathBuf;
 
 use walkdir::WalkDir;
 
-use crate::models::{CodexEnvironmentStatus, EnvironmentDiagnostics, WebView2Status};
+use crate::models::{
+    CodexEnvironmentStatus, CopilotEnvironmentStatus, EnvironmentDiagnostics, WebView2Status,
+};
 
 const WEBVIEW2_CLIENT_ID: &str = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
 
 pub fn inspect_environment() -> EnvironmentDiagnostics {
     let webview2 = inspect_webview2();
     let codex = inspect_codex();
+    let copilot = inspect_copilot();
 
     let mut warnings = Vec::new();
 
@@ -38,9 +41,22 @@ pub fn inspect_environment() -> EnvironmentDiagnostics {
         );
     }
 
+    if !copilot.apps_exists && !copilot.oauth_exists {
+        warnings.push(
+            "No GitHub Copilot login was detected for this Windows account. Sign in to Copilot first, then refresh."
+                .to_string(),
+        );
+    } else if copilot.session_file_count == 0 {
+        warnings.push(
+            "GitHub Copilot login was found, but no local session history exists yet. Open Copilot once to generate local session data."
+                .to_string(),
+        );
+    }
+
     EnvironmentDiagnostics {
         webview2,
         codex,
+        copilot,
         warnings,
     }
 }
@@ -70,6 +86,46 @@ fn inspect_codex() -> CodexEnvironmentStatus {
         auth_exists: auth_path.exists(),
         config_exists: config_path.exists(),
         sessions_exists: sessions_root.exists(),
+        session_file_count,
+    }
+}
+
+fn inspect_copilot() -> CopilotEnvironmentStatus {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let local_data = dirs::data_local_dir().unwrap_or_else(|| home.join("AppData").join("Local"));
+    let data_dir = dirs::data_dir().unwrap_or_else(|| home.join("AppData").join("Roaming"));
+
+    let root = local_data.join("github-copilot");
+    let apps_path = root.join("apps.json");
+    let oauth_path = root.join("oauth.json");
+    let session_root = home.join(".copilot").join("session-state");
+    let vscode_storage_root = data_dir
+        .join("Code")
+        .join("User")
+        .join("globalStorage")
+        .join("github.copilot-chat");
+
+    let session_file_count = if session_root.exists() {
+        WalkDir::new(&session_root)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("jsonl"))
+            .count()
+    } else {
+        0
+    };
+
+    CopilotEnvironmentStatus {
+        root_path: root.display().to_string(),
+        apps_path: apps_path.display().to_string(),
+        oauth_path: oauth_path.display().to_string(),
+        session_root: session_root.display().to_string(),
+        vscode_storage_root: vscode_storage_root.display().to_string(),
+        apps_exists: apps_path.exists(),
+        oauth_exists: oauth_path.exists(),
+        session_exists: session_root.exists(),
+        vscode_storage_exists: vscode_storage_root.exists(),
         session_file_count,
     }
 }

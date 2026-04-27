@@ -1,8 +1,10 @@
 pub mod codex;
+pub mod github_copilot;
 
 use crate::error::AppError;
 use crate::models::{ProviderDescriptor, ProviderSnapshot};
 use codex::CodexProvider;
+use github_copilot::GitHubCopilotProvider;
 
 pub trait ProviderAdapter {
     fn descriptor(&self) -> ProviderDescriptor;
@@ -12,11 +14,7 @@ pub trait ProviderAdapter {
 pub fn registry() -> Vec<Box<dyn ProviderAdapter>> {
     vec![
         Box::new(CodexProvider::new()),
-        Box::new(PlannedProvider::new(
-            "github-copilot",
-            "GitHub Copilot",
-            "Adapter reserved for future provider support.",
-        )),
+        Box::new(GitHubCopilotProvider::new()),
         Box::new(PlannedProvider::new(
             "openrouter",
             "OpenRouter",
@@ -76,4 +74,3 @@ pub fn capability(kind: &str, available: bool) -> crate::models::ProviderCapabil
         available,
     }
 }
-

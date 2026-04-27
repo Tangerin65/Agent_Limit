@@ -124,12 +124,15 @@ tsconfig*.json            TypeScript 配置
 - 计算剩余百分比
 - 手动刷新
 
-#### 预留 Provider
+#### 已支持 / 部分支持 Provider
 
 - `GitHub Copilot`
 - `OpenRouter`
 
-当前这两个 Provider 已保留统一适配器入口，但尚未实现真实查询逻辑。
+其中：
+
+- `GitHub Copilot` 已支持读取本地登录态，并通过 GitHub 接口刷新账号套餐与 premium requests 额度
+- `OpenRouter` 仍保留统一适配器入口，尚未实现真实查询逻辑
 
 
 ### 开发说明
@@ -273,12 +276,15 @@ tsconfig*.json            TypeScript configs
 - Calculate remaining percentage
 - Manual refresh
 
-#### Reserved providers
+#### Supported / partial providers
 
 - GitHub Copilot
 - OpenRouter
 
-These two providers have adapter entry points reserved, but the actual query logic is not implemented yet.
+Current status:
+
+- GitHub Copilot now reads local sign-in state and refreshes plan/quota details from GitHub
+- OpenRouter still has a reserved adapter entry point, but the actual query logic is not implemented yet
 
 ### Development notes
 

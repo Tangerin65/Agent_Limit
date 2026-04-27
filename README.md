@@ -11,24 +11,44 @@
 
 `Agent Limit` 是一个面向 Windows 的本地桌面工具，用来查看当前电脑上已登录的 AI Agent 账号额度情况。
 
-一期重点支持 `Codex`，可以直接读取本机 `codex` 登录状态与本地会话限额信息，展示：
+当前版本已支持 `Codex` 与 `GitHub Copilot` 两类 Provider，并统一展示：
 
 - 当前账号
 - 当前套餐
-- 当前限额窗口已用比例
-- 当前限额窗口剩余比例
+- 当前限额窗口已用量
+- 当前限额窗口剩余量
 - 重置时间
+- 重置倒计时
 - 手动刷新获取
+
+其中：
+
+- `Codex` 以百分比形式展示当前限额窗口使用情况
+- `GitHub Copilot` 以 `premium requests` 数量展示套餐与剩余额度
 
 同时，项目已经预留了后续扩展接口，便于继续接入：
 
-- GitHub Copilot
 - OpenRouter
 - 其他基于 API Key 或网页登录态的额度来源
 
+### 最近更新
+
+最近一次提交主要完成了以下改动：
+
+- 新增 `GitHub Copilot` Provider，支持读取本机登录态并请求 GitHub 接口刷新账号套餐与额度信息
+- 前端从单 Provider 展示升级为多 Provider 切换
+- 新增 `Dashboard / Details` 双视图
+- 新增额度重置倒计时显示
+- 新增环境诊断面板，可查看 `WebView2`、`Codex`、`GitHub Copilot` 的本地检测结果
+- 统一扩展了 Provider 数据模型，补充套餐、额度置信度、原始元数据、告警等字段
+
 ### 当前实现方式
 
-当前版本不会调用公开账单接口，而是优先读取本机已有的 Codex 本地数据：
+当前版本对不同 Provider 采用不同的数据来源策略：
+
+#### Codex
+
+优先读取本机已有的 Codex 本地数据：
 
 - `C:\Users\<你的用户名>\.codex\auth.json`
 - `C:\Users\<你的用户名>\.codex\config.toml`
@@ -40,6 +60,23 @@
 - 剩余额度来自最新一次本地 `token_count` 事件中的 `rate_limits.primary.used_percent`
 
 因此，这一版显示的是 `Codex 当前限额窗口的剩余百分比`，而不是 OpenAI 控制台上的账单余额。
+
+#### GitHub Copilot
+
+先读取本机登录文件，再使用本地登录态向 GitHub 接口刷新 Copilot 账号信息：
+
+- `C:\Users\<你的用户名>\AppData\Local\github-copilot\apps.json`
+- `C:\Users\<你的用户名>\AppData\Local\github-copilot\oauth.json`
+- `C:\Users\<你的用户名>\.copilot\session-state\**\*.jsonl`
+- `C:\Users\<你的用户名>\AppData\Roaming\Code\User\globalStorage\github.copilot-chat`
+
+其中：
+
+- 本地文件用于检测当前 Windows 账户下是否已登录 GitHub Copilot
+- 远程刷新请求会返回当前账号、套餐 SKU、套餐名称以及 `premium_interactions` 配额快照
+- 若当前套餐没有有限的 premium requests 配额，界面会显示套餐信息，但额度状态可能为 `unavailable`
+
+因此，这一版显示的是 `GitHub Copilot premium requests` 的套餐/额度视图，而不是 GitHub 账单页面的消费金额。
 
 ### 技术栈
 
@@ -99,7 +136,7 @@ src/                     前端（React）
 
 src-tauri/                Tauri v2 / Rust 后端
     src/
-        providers/             Provider 适配器（一期 codex + 预留入口）
+        providers/             Provider 适配器（当前已接入 codex / github copilot）
         main.rs                Tauri 入口与命令注册
         lib.rs                 后端对外接口（commands 等）
         models.rs              统一数据模型
@@ -126,13 +163,24 @@ tsconfig*.json            TypeScript 配置
 
 #### 已支持 / 部分支持 Provider
 
-- `GitHub Copilot`
 - `OpenRouter`
+- `GitHub Copilot`
 
 其中：
 
-- `GitHub Copilot` 已支持读取本地登录态，并通过 GitHub 接口刷新账号套餐与 premium requests 额度
+- `GitHub Copilot` 已支持读取本地登录态
+- `GitHub Copilot` 已支持通过 GitHub 接口刷新账号套餐、套餐 SKU、premium requests 总量/已用/剩余、重置时间
+- `GitHub Copilot` 在无法读取登录文件或远程刷新失败时，会返回降级状态与告警信息
 - `OpenRouter` 仍保留统一适配器入口，尚未实现真实查询逻辑
+
+### 界面变化
+
+当前界面不再只展示单一卡片，而是分为两种视图：
+
+- `Dashboard`：展示当前 Provider、账号、套餐、剩余额度、重置时间、倒计时
+- `Details`：展示 Provider 状态、能力开关、环境诊断、账号详情、套餐详情、额度详情、告警、原始元数据
+
+多 Provider 可通过顶部切换按钮进行切换，刷新操作会同时更新当前 Provider 快照与环境诊断信息。
 
 
 ### 开发说明
@@ -147,7 +195,6 @@ tsconfig*.json            TypeScript 配置
 
 ### 后续计划
 
-- 接入 GitHub Copilot 额度查询
 - 接入 OpenRouter 余额查询
 - 增加托盘模式
 - 增加自动刷新
@@ -161,26 +208,46 @@ tsconfig*.json            TypeScript 配置
 
 ## English
 
-`Agent Limit` is a Windows desktop app that shows the remaining quota/limit window usage for the AI agent accounts currently signed in on your PC.
+`Agent Limit` is a Windows desktop app that shows quota usage for AI agent accounts currently signed in on your PC.
 
-Phase 1 focuses on **Codex**. It reads your local Codex login/session data and displays:
+The current version supports both **Codex** and **GitHub Copilot**, and shows:
 
 - Current account
 - Current plan
-- Used percentage in the current limit window
-- Remaining percentage in the current limit window
+- Used amount in the current limit window
+- Remaining amount in the current limit window
 - Reset time
+- Reset countdown
 - Manual refresh
+
+Where:
+
+- `Codex` is displayed as percentage-based limit window usage
+- `GitHub Copilot` is displayed as premium request quota totals and remaining requests
 
 The project also reserves extension points so you can add more providers later:
 
-- GitHub Copilot
 - OpenRouter
 - Other quota sources via API keys or web login sessions
 
+### Latest update
+
+The latest commit `011bdac` (`Update:更新Github Copilot适配`) introduced:
+
+- A new `GitHub Copilot` provider that detects local sign-in state and refreshes account/plan/quota data from GitHub
+- Multi-provider switching in the UI
+- A `Dashboard / Details` split view
+- Reset countdown display
+- An environment diagnostics panel for `WebView2`, `Codex`, and `GitHub Copilot`
+- An expanded provider data model with plan details, quota confidence, warnings, and raw metadata
+
 ### How it works
 
-This version **does not** call any public billing APIs. Instead, it reads local Codex data files:
+This version uses different data sources depending on the provider:
+
+#### Codex
+
+It reads local Codex data files:
 
 - `C:\Users\<your-username>\.codex\auth.json`
 - `C:\Users\<your-username>\.codex\config.toml`
@@ -192,6 +259,23 @@ Where:
 - Remaining quota is derived from the latest local `token_count` event field: `rate_limits.primary.used_percent`
 
 So what you see is the **remaining percentage within Codex’s current rate-limit window**, not the monetary balance shown in any web console.
+
+#### GitHub Copilot
+
+It first reads local login files, then uses the local signed-in session to refresh account data from GitHub:
+
+- `C:\Users\<your-username>\AppData\Local\github-copilot\apps.json`
+- `C:\Users\<your-username>\AppData\Local\github-copilot\oauth.json`
+- `C:\Users\<your-username>\.copilot\session-state\**\*.jsonl`
+- `C:\Users\<your-username>\AppData\Roaming\Code\User\globalStorage\github.copilot-chat`
+
+Where:
+
+- Local files are used to detect whether GitHub Copilot is signed in for the current Windows account
+- The refresh request returns account identity, plan SKU, plan name, and `premium_interactions` quota snapshots
+- If the current plan does not expose a finite premium request allowance, the plan may still be shown while quota stays `unavailable`
+
+So what you see is a **GitHub Copilot premium-requests quota view**, not a GitHub billing or spending page.
 
 ### Tech stack
 
@@ -251,7 +335,7 @@ src/                     Frontend (React)
 
 src-tauri/                Tauri v2 / Rust backend
     src/
-        providers/             Provider adapters (phase 1: codex + reserved entries)
+        providers/             Provider adapters (currently codex / github copilot)
         main.rs                Tauri entry & command registration
         lib.rs                 Backend public interface (commands, etc.)
         models.rs              Shared data model
@@ -278,13 +362,23 @@ tsconfig*.json            TypeScript configs
 
 #### Supported / partial providers
 
-- GitHub Copilot
 - OpenRouter
 
 Current status:
 
-- GitHub Copilot now reads local sign-in state and refreshes plan/quota details from GitHub
+- GitHub Copilot now reads local sign-in state
+- GitHub Copilot now refreshes account plan, plan SKU, premium requests total/used/remaining, and reset time from GitHub
+- GitHub Copilot returns degraded state and warnings when local login files are missing or the remote refresh fails
 - OpenRouter still has a reserved adapter entry point, but the actual query logic is not implemented yet
+
+### UI changes
+
+The UI is now split into two views:
+
+- `Dashboard`: current provider, account, plan, remaining quota, reset time, and countdown
+- `Details`: provider status, capability flags, environment diagnostics, account details, plan details, quota details, warnings, and raw metadata
+
+You can switch providers from the top bar. Refresh updates both the selected provider snapshot and the environment diagnostics.
 
 ### Development notes
 
@@ -299,7 +393,6 @@ This keeps the UI stable without rewriting it per provider.
 
 ### Roadmap
 
-- Add GitHub Copilot quota querying
 - Add OpenRouter balance querying
 - Add tray mode
 - Add auto refresh

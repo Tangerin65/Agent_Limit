@@ -17,38 +17,38 @@ pub fn inspect_environment() -> EnvironmentDiagnostics {
 
     if !webview2.installed {
         warnings.push(
-            "WebView2 Runtime was not detected. Install using the generated setup package before running the standalone exe."
+            "未检测到 WebView2 Runtime。若使用单文件 exe，请先通过安装包完成运行时安装。"
                 .to_string(),
         );
     }
 
     if !codex.auth_exists {
         warnings.push(
-            "No Codex login was detected for this Windows account. Sign in with Codex first, then refresh."
+            "当前 Windows 账户未检测到 Codex 登录态，请先登录 Codex 后再刷新。"
                 .to_string(),
         );
     } else if codex.session_file_count == 0 {
         warnings.push(
-            "Codex login was found, but no local session history exists yet. Open Codex once to generate session data."
+            "已检测到 Codex 登录态，但还没有本地会话历史。先打开一次 Codex 生成会话数据。"
                 .to_string(),
         );
     }
 
     if codex.auth_exists && !codex.config_exists {
         warnings.push(
-            "Codex auth was found, but config.toml is missing. Some plan fields may stay partial."
+            "已检测到 Codex 认证，但缺少 config.toml，部分套餐字段可能不完整。"
                 .to_string(),
         );
     }
 
     if !copilot.apps_exists && !copilot.oauth_exists {
         warnings.push(
-            "No GitHub Copilot login was detected for this Windows account. Sign in to Copilot first, then refresh."
+            "当前 Windows 账户未检测到 GitHub Copilot 登录态，请先登录 Copilot 后再刷新。"
                 .to_string(),
         );
     } else if copilot.session_file_count == 0 {
         warnings.push(
-            "GitHub Copilot login was found, but no local session history exists yet. Open Copilot once to generate local session data."
+            "已检测到 GitHub Copilot 登录态，但还没有本地会话历史。先打开一次 Copilot 生成本地会话数据。"
                 .to_string(),
         );
     }

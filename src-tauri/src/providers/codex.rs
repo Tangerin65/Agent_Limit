@@ -33,9 +33,9 @@ impl ProviderAdapter for CodexProvider {
             name: "Codex".to_string(),
             status: if auth_exists { "ready" } else { "degraded" }.to_string(),
             message: Some(if auth_exists {
-                "Reads local Codex auth data and the newest local rate-limit snapshot.".to_string()
+                "读取本地 Codex 认证数据与最新限额快照。".to_string()
             } else {
-                "Codex auth.json was not found in the current user profile.".to_string()
+                "当前用户目录中未找到 Codex 的 auth.json。".to_string()
             }),
             capabilities: vec![
                 capability("account", auth_exists),
@@ -65,13 +65,15 @@ impl ProviderAdapter for CodexProvider {
                     total: None,
                     used: None,
                     remaining: None,
+                    percent_used: None,
+                    percent_remaining: None,
                     unit: None,
                     confidence: Some("none".to_string()),
                     reset_at: None,
                     source: Some("local-filesystem".to_string()),
-                    note: Some("Codex auth.json not found.".to_string()),
+                    note: Some("未找到 Codex auth.json。".to_string()),
                 }),
-                warnings: vec!["Codex appears to be logged out for the current user.".to_string()],
+                warnings: vec!["当前 Windows 用户似乎尚未登录 Codex。".to_string()],
                 refreshed_at: Utc::now().to_rfc3339(),
                 raw_meta: Some(json!({
                     "authPath": paths.auth_path.display().to_string(),
@@ -112,12 +114,14 @@ impl ProviderAdapter for CodexProvider {
                 total: Some(100.0),
                 used: Some(limits.used_percent),
                 remaining: Some(remaining),
+                percent_used: Some(limits.used_percent),
+                percent_remaining: Some(remaining),
                 unit: Some("%".to_string()),
                 confidence: Some("high".to_string()),
                 reset_at: limits.reset_at.clone(),
                 source: Some("codex-session-rate-limits".to_string()),
                 note: Some(
-                    "Derived from the newest local Codex token_count event on disk.".to_string(),
+                    "数据来自本地磁盘中最新的 Codex token_count 事件。".to_string(),
                 ),
             })
         } else {
@@ -126,33 +130,32 @@ impl ProviderAdapter for CodexProvider {
                 total: None,
                 used: None,
                 remaining: None,
+                percent_used: None,
+                percent_remaining: None,
                 unit: None,
                 confidence: Some("none".to_string()),
                 reset_at: None,
                 source: Some("local-filesystem".to_string()),
-                note: Some("No local rate-limit snapshot was found yet.".to_string()),
+                note: Some("暂未找到本地限额快照。".to_string()),
             })
         };
 
         let mut warnings = Vec::new();
         if session_limits.is_none() {
             warnings.push(
-                "Quota is unavailable until Codex records at least one token_count event locally."
-                    .to_string(),
+                "在 Codex 本地写入至少一条 token_count 事件之前，配额信息不可用。".to_string(),
             );
         }
         if let Some(mode) = auth.auth_mode.as_deref() {
             if mode != "chatgpt" {
                 warnings.push(
-                    "Current account is not using ChatGPT login; plan details may be partial."
-                        .to_string(),
+                    "当前账号不是通过 ChatGPT 登录，套餐信息可能不完整。".to_string(),
                 );
             }
         }
         if auth.openai_api_key.is_some() {
             warnings.push(
-                "An OPENAI_API_KEY is present locally; this app currently prioritizes ChatGPT/Codex login context."
-                    .to_string(),
+                "本地检测到 OPENAI_API_KEY；当前应用仍优先使用 ChatGPT/Codex 登录态。".to_string(),
             );
         }
 
@@ -170,8 +173,8 @@ impl ProviderAdapter for CodexProvider {
                 tier: detected_plan,
                 cycle: session_limits
                     .as_ref()
-                    .map(|limits| format!("{} minute window", limits.window_minutes))
-                    .or_else(|| Some("session-based".to_string())),
+                    .map(|limits| format!("{} 分钟窗口", limits.window_minutes))
+                    .or_else(|| Some("基于会话".to_string())),
                 renewal_at: session_limits.as_ref().and_then(|limits| limits.reset_at.clone()),
                 source: Some(if session_limits.is_some() {
                     "session-rate-limits".to_string()

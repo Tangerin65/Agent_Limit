@@ -45,6 +45,8 @@ pub struct QuotaSnapshot {
     pub total: Option<f64>,
     pub used: Option<f64>,
     pub remaining: Option<f64>,
+    pub percent_used: Option<f64>,
+    pub percent_remaining: Option<f64>,
     pub unit: Option<String>,
     pub confidence: Option<String>,
     pub reset_at: Option<String>,

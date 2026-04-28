@@ -34,6 +34,8 @@ export interface QuotaSnapshot {
   total?: number | null;
   used?: number | null;
   remaining?: number | null;
+  percentUsed?: number | null;
+  percentRemaining?: number | null;
   unit?: string | null;
   confidence?: string | null;
   resetAt?: string | null;

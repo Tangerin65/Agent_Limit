@@ -24,7 +24,7 @@
 其中：
 
 - `Codex` 以百分比形式展示当前限额窗口使用情况
-- `GitHub Copilot` 以 `premium requests` 数量展示套餐与剩余额度
+- `GitHub Copilot` 以 `premium requests` 数量展示套餐、剩余额度与剩余百分比
 
 同时，项目已经预留了后续扩展接口，便于继续接入：
 
@@ -41,6 +41,13 @@
 - 新增额度重置倒计时显示
 - 新增环境诊断面板，可查看 `WebView2`、`Codex`、`GitHub Copilot` 的本地检测结果
 - 统一扩展了 Provider 数据模型，补充套餐、额度置信度、原始元数据、告警等字段
+
+最近一次修复进一步补齐了以下问题：
+
+- 修复切换顶部 `Agent / Provider` 菜单后不会自动刷新的问题，现在切换后会立即请求当前 Provider 快照
+- 为 `GitHub Copilot` 补充 `premium_interactions.percent_remaining` 映射，界面可同时显示剩余数量与剩余百分比
+- 前端主界面、详情面板、环境告警与 Provider 提示已补充中文文案
+- 调整页面语言与字体栈，优先使用 Windows 下不易乱码的中文字体（如 `Microsoft YaHei UI`）
 
 ### 当前实现方式
 
@@ -74,6 +81,7 @@
 
 - 本地文件用于检测当前 Windows 账户下是否已登录 GitHub Copilot
 - 远程刷新请求会返回当前账号、套餐 SKU、套餐名称以及 `premium_interactions` 配额快照
+- 若当前套餐返回了有限 premium requests 配额，界面会展示总量、已用、剩余与剩余百分比
 - 若当前套餐没有有限的 premium requests 配额，界面会显示套餐信息，但额度状态可能为 `unavailable`
 
 因此，这一版显示的是 `GitHub Copilot premium requests` 的套餐/额度视图，而不是 GitHub 账单页面的消费金额。
@@ -169,7 +177,7 @@ tsconfig*.json            TypeScript 配置
 其中：
 
 - `GitHub Copilot` 已支持读取本地登录态
-- `GitHub Copilot` 已支持通过 GitHub 接口刷新账号套餐、套餐 SKU、premium requests 总量/已用/剩余、重置时间
+- `GitHub Copilot` 已支持通过 GitHub 接口刷新账号套餐、套餐 SKU、premium requests 总量/已用/剩余、剩余百分比、重置时间
 - `GitHub Copilot` 在无法读取登录文件或远程刷新失败时，会返回降级状态与告警信息
 - `OpenRouter` 仍保留统一适配器入口，尚未实现真实查询逻辑
 
@@ -178,9 +186,11 @@ tsconfig*.json            TypeScript 配置
 当前界面不再只展示单一卡片，而是分为两种视图：
 
 - `Dashboard`：展示当前 Provider、账号、套餐、剩余额度、重置时间、倒计时
-- `Details`：展示 Provider 状态、能力开关、环境诊断、账号详情、套餐详情、额度详情、告警、原始元数据
+- `Details`：展示 Provider 状态、能力开关、环境诊断、账号详情、套餐详情、额度详情、百分比详情、告警、原始元数据
 
-多 Provider 可通过顶部切换按钮进行切换，刷新操作会同时更新当前 Provider 快照与环境诊断信息。
+多 Provider 可通过顶部切换按钮进行切换；切换时会自动刷新当前 Provider，手动刷新操作会同时更新当前 Provider 快照与环境诊断信息。
+
+当前版本界面已补充中文，并对 Windows 字体回退做了处理，以尽量避免中文显示乱码。
 
 
 ### 开发说明
@@ -223,7 +233,7 @@ The current version supports both **Codex** and **GitHub Copilot**, and shows:
 Where:
 
 - `Codex` is displayed as percentage-based limit window usage
-- `GitHub Copilot` is displayed as premium request quota totals and remaining requests
+- `GitHub Copilot` is displayed as premium request quota totals, remaining requests, and remaining percentage
 
 The project also reserves extension points so you can add more providers later:
 
@@ -240,6 +250,13 @@ The latest commit `011bdac` (`Update:更新Github Copilot适配`) introduced:
 - Reset countdown display
 - An environment diagnostics panel for `WebView2`, `Codex`, and `GitHub Copilot`
 - An expanded provider data model with plan details, quota confidence, warnings, and raw metadata
+
+The latest fix pass also addressed the following issues:
+
+- Switching the top provider menu now auto-refreshes the selected provider snapshot
+- `GitHub Copilot` now maps `premium_interactions.percent_remaining`, so the UI can show both remaining requests and remaining percentage
+- The frontend UI, detail panels, warnings, and provider messages now include Chinese text
+- The page language and font stack were adjusted to prefer Windows-safe Chinese fonts such as `Microsoft YaHei UI`
 
 ### How it works
 
@@ -273,6 +290,7 @@ Where:
 
 - Local files are used to detect whether GitHub Copilot is signed in for the current Windows account
 - The refresh request returns account identity, plan SKU, plan name, and `premium_interactions` quota snapshots
+- When a finite premium requests allowance is returned, the app shows total, used, remaining, and remaining percentage
 - If the current plan does not expose a finite premium request allowance, the plan may still be shown while quota stays `unavailable`
 
 So what you see is a **GitHub Copilot premium-requests quota view**, not a GitHub billing or spending page.
@@ -367,7 +385,7 @@ tsconfig*.json            TypeScript configs
 Current status:
 
 - GitHub Copilot now reads local sign-in state
-- GitHub Copilot now refreshes account plan, plan SKU, premium requests total/used/remaining, and reset time from GitHub
+- GitHub Copilot now refreshes account plan, plan SKU, premium requests total/used/remaining, remaining percentage, and reset time from GitHub
 - GitHub Copilot returns degraded state and warnings when local login files are missing or the remote refresh fails
 - OpenRouter still has a reserved adapter entry point, but the actual query logic is not implemented yet
 
@@ -376,9 +394,11 @@ Current status:
 The UI is now split into two views:
 
 - `Dashboard`: current provider, account, plan, remaining quota, reset time, and countdown
-- `Details`: provider status, capability flags, environment diagnostics, account details, plan details, quota details, warnings, and raw metadata
+- `Details`: provider status, capability flags, environment diagnostics, account details, plan details, quota details, percentage details, warnings, and raw metadata
 
-You can switch providers from the top bar. Refresh updates both the selected provider snapshot and the environment diagnostics.
+You can switch providers from the top bar, and switching now auto-refreshes the selected provider. Manual refresh updates both the selected provider snapshot and the environment diagnostics.
+
+The current build also includes Chinese UI text and a safer Windows-oriented Chinese font fallback setup to reduce the risk of garbled rendering.
 
 ### Development notes
 

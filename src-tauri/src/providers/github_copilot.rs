@@ -33,11 +33,10 @@ impl ProviderAdapter for GitHubCopilotProvider {
             name: "GitHub Copilot".to_string(),
             status: if has_login { "ready" } else { "degraded" }.to_string(),
             message: Some(if has_login {
-                "Reads local GitHub Copilot login state and refreshes plan/quota details from GitHub."
+                "读取本地 GitHub Copilot 登录态，并从 GitHub 刷新套餐与配额信息。"
                     .to_string()
             } else {
-                "GitHub Copilot login files were not found in the current user profile."
-                    .to_string()
+                "当前用户目录中未找到 GitHub Copilot 登录文件。".to_string()
             }),
             capabilities: vec![
                 capability("account", has_login),
@@ -69,14 +68,16 @@ impl ProviderAdapter for GitHubCopilotProvider {
                     total: None,
                     used: None,
                     remaining: None,
+                    percent_used: None,
+                    percent_remaining: None,
                     unit: Some("requests".to_string()),
                     confidence: Some("none".to_string()),
                     reset_at: None,
                     source: Some("local-filesystem".to_string()),
-                    note: Some("GitHub Copilot login files were not found.".to_string()),
+                    note: Some("未找到 GitHub Copilot 登录文件。".to_string()),
                 }),
                 warnings: vec![
-                    "GitHub Copilot appears to be logged out for the current user.".to_string(),
+                    "当前 Windows 用户似乎尚未登录 GitHub Copilot。".to_string(),
                 ],
                 refreshed_at,
                 raw_meta: Some(json!({
@@ -110,7 +111,7 @@ impl ProviderAdapter for GitHubCopilotProvider {
                 let mut warnings = Vec::new();
                 if quota.as_ref().is_some_and(|snapshot| snapshot.status != "available") {
                     warnings.push(
-                        "GitHub Copilot account was detected, but premium request quota is unavailable for this plan or context."
+                        "已检测到 GitHub Copilot 账号，但当前套餐或上下文未返回 premium requests 配额。"
                             .to_string(),
                     );
                 }
@@ -140,7 +141,7 @@ impl ProviderAdapter for GitHubCopilotProvider {
                 provider: ProviderDescriptor {
                     status: "degraded".to_string(),
                     message: Some(
-                        "GitHub Copilot login was detected locally, but the quota refresh request failed."
+                        "已检测到本地 GitHub Copilot 登录态，但刷新配额请求失败。"
                             .to_string(),
                     ),
                     ..descriptor
@@ -152,16 +153,18 @@ impl ProviderAdapter for GitHubCopilotProvider {
                     total: None,
                     used: None,
                     remaining: None,
+                    percent_used: None,
+                    percent_remaining: None,
                     unit: Some("requests".to_string()),
                     confidence: Some("low".to_string()),
                     reset_at: None,
                     source: Some("copilot_internal/user".to_string()),
                     note: Some(
-                        "Quota refresh failed. Re-authenticate in GitHub Copilot if this keeps happening."
+                        "配额刷新失败；如果持续出现，请在 GitHub Copilot 中重新登录。"
                             .to_string(),
                     ),
                 }),
-                warnings: vec![format!("GitHub Copilot refresh failed: {error}")],
+                warnings: vec![format!("GitHub Copilot 刷新失败：{error}")],
                 refreshed_at,
                 raw_meta: Some(json!({
                     "appsPath": paths.apps_path.display().to_string(),
@@ -342,11 +345,13 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
             total: None,
             used: None,
             remaining: None,
+            percent_used: None,
+            percent_remaining: None,
             unit: Some("requests".to_string()),
             confidence: Some("none".to_string()),
             reset_at: resolve_reset_at(remote),
             source: Some("copilot_internal/user".to_string()),
-            note: Some("No premium request quota snapshot was returned.".to_string()),
+            note: Some("未返回 premium requests 配额快照。".to_string()),
         });
     };
 
@@ -363,12 +368,14 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
             total: entitlement,
             used,
             remaining,
+            percent_used: premium.percent_remaining.map(|value| (100.0 - value).clamp(0.0, 100.0)),
+            percent_remaining: premium.percent_remaining,
             unit: Some("requests".to_string()),
             confidence: Some("low".to_string()),
             reset_at: resolve_reset_at(remote),
             source: Some("copilot_internal/user".to_string()),
             note: Some(
-                "GitHub Copilot reported the plan, but no finite premium request allowance was available."
+                "GitHub Copilot 返回了套餐信息，但没有可计算的有限 premium requests 配额。"
                     .to_string(),
             ),
         });
@@ -379,12 +386,16 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
         total: entitlement,
         used,
         remaining,
+        percent_used: premium
+            .percent_remaining
+            .map(|value| (100.0 - value).clamp(0.0, 100.0)),
+        percent_remaining: premium.percent_remaining,
         unit: Some("requests".to_string()),
         confidence: Some("high".to_string()),
         reset_at: resolve_reset_at(remote),
         source: Some("copilot_internal/user".to_string()),
         note: Some(
-            "Derived from GitHub Copilot account metadata using the local signed-in account."
+            "数据来自本地登录账号对应的 GitHub Copilot 账户元数据。"
                 .to_string(),
         ),
     })
@@ -515,6 +526,8 @@ mod tests {
         assert_eq!(quota.total, Some(300.0));
         assert_eq!(quota.remaining, Some(48.0));
         assert_eq!(quota.used, Some(252.0));
+        assert_eq!(quota.percent_remaining, Some(16.2));
+        assert_eq!(quota.percent_used, Some(83.8));
         assert_eq!(quota.unit.as_deref(), Some("requests"));
     }
 }

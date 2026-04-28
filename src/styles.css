@@ -124,6 +124,12 @@ pre {
   gap: 12px;
 }
 
+.topbar__utility-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .provider-switch {
   display: flex;
   flex-wrap: wrap;
@@ -159,6 +165,35 @@ pre {
 .topbar__actions {
   display: flex;
   gap: 10px;
+}
+
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(7, 18, 28, 0.82);
+  box-shadow: var(--shadow);
+}
+
+.language-select__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.language-select__input {
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+}
+
+.language-select__input option {
+  color: #07111b;
 }
 
 .primary-button,
@@ -285,12 +320,14 @@ pre {
 .metric-card__meta {
   margin: 12px 0 0;
   color: var(--muted);
+  font-size: 0.96rem;
 }
 
 .metric-card__submeta {
   margin: 8px 0 0;
   color: #ffe3a4;
-  font-size: 0.96rem;
+  font-size: 0.84rem;
+  opacity: 0.9;
 }
 
 .metric-card__countdown {
@@ -424,18 +461,26 @@ pre {
   }
 
   .provider-switch,
+  .topbar__utility-row,
   .topbar__actions {
     width: 100%;
   }
 
+  .topbar__utility-row,
   .topbar__actions {
     flex-direction: column;
   }
 
   .primary-button,
   .secondary-button,
-  .provider-switch__item {
+  .provider-switch__item,
+  .language-select,
+  .language-select__input {
     width: 100%;
+  }
+
+  .language-select {
+    justify-content: space-between;
   }
 
   .detail-panel__header,

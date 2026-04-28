@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use walkdir::WalkDir;
 
 use crate::error::AppError;
+use crate::locale::AppLocale;
 use crate::models::{
     AccountSnapshot, PlanSnapshot, ProviderDescriptor, ProviderSnapshot, QuotaSnapshot,
 };
@@ -23,7 +24,7 @@ impl CodexProvider {
 }
 
 impl ProviderAdapter for CodexProvider {
-    fn descriptor(&self) -> ProviderDescriptor {
+    fn descriptor(&self, locale: AppLocale) -> ProviderDescriptor {
         let paths = CodexPaths::detect();
         let auth_exists = paths.auth_path.exists();
         let session_exists = paths.sessions_root.exists();
@@ -33,9 +34,15 @@ impl ProviderAdapter for CodexProvider {
             name: "Codex".to_string(),
             status: if auth_exists { "ready" } else { "degraded" }.to_string(),
             message: Some(if auth_exists {
-                "读取本地 Codex 认证数据与最新限额快照。".to_string()
+                locale.text(
+                    "Reads local Codex auth data and the latest quota snapshot.",
+                    "读取本地 Codex 认证数据与最新限额快照。",
+                )
             } else {
-                "当前用户目录中未找到 Codex 的 auth.json。".to_string()
+                locale.text(
+                    "No Codex auth.json was found in the current user directory.",
+                    "当前用户目录中未找到 Codex 的 auth.json。",
+                )
             }),
             capabilities: vec![
                 capability("account", auth_exists),
@@ -45,9 +52,9 @@ impl ProviderAdapter for CodexProvider {
         }
     }
 
-    fn refresh(&self) -> Result<ProviderSnapshot, AppError> {
+    fn refresh(&self, locale: AppLocale) -> Result<ProviderSnapshot, AppError> {
         let paths = CodexPaths::detect();
-        let descriptor = self.descriptor();
+        let descriptor = self.descriptor(locale);
 
         if !paths.auth_path.exists() {
             return Ok(ProviderSnapshot {
@@ -71,9 +78,15 @@ impl ProviderAdapter for CodexProvider {
                     confidence: Some("none".to_string()),
                     reset_at: None,
                     source: Some("local-filesystem".to_string()),
-                    note: Some("未找到 Codex auth.json。".to_string()),
+                    note: Some(locale.text(
+                        "Codex auth.json was not found.",
+                        "未找到 Codex auth.json。",
+                    )),
                 }),
-                warnings: vec!["当前 Windows 用户似乎尚未登录 Codex。".to_string()],
+                warnings: vec![locale.text(
+                    "The current Windows user does not appear to be signed in to Codex.",
+                    "当前 Windows 用户似乎尚未登录 Codex。",
+                )],
                 refreshed_at: Utc::now().to_rfc3339(),
                 raw_meta: Some(json!({
                     "authPath": paths.auth_path.display().to_string(),
@@ -120,9 +133,10 @@ impl ProviderAdapter for CodexProvider {
                 confidence: Some("high".to_string()),
                 reset_at: limits.reset_at.clone(),
                 source: Some("codex-session-rate-limits".to_string()),
-                note: Some(
-                    "数据来自本地磁盘中最新的 Codex token_count 事件。".to_string(),
-                ),
+                note: Some(locale.text(
+                    "Data comes from the latest local Codex token_count event on disk.",
+                    "数据来自本地磁盘中最新的 Codex token_count 事件。",
+                )),
             })
         } else {
             Some(QuotaSnapshot {
@@ -136,27 +150,33 @@ impl ProviderAdapter for CodexProvider {
                 confidence: Some("none".to_string()),
                 reset_at: None,
                 source: Some("local-filesystem".to_string()),
-                note: Some("暂未找到本地限额快照。".to_string()),
+                note: Some(locale.text(
+                    "No local quota snapshot was found yet.",
+                    "暂未找到本地限额快照。",
+                )),
             })
         };
 
         let mut warnings = Vec::new();
         if session_limits.is_none() {
-            warnings.push(
-                "在 Codex 本地写入至少一条 token_count 事件之前，配额信息不可用。".to_string(),
-            );
+            warnings.push(locale.text(
+                "Quota information stays unavailable until Codex writes at least one local token_count event.",
+                "在 Codex 本地写入至少一条 token_count 事件之前，配额信息不可用。",
+            ));
         }
         if let Some(mode) = auth.auth_mode.as_deref() {
             if mode != "chatgpt" {
-                warnings.push(
-                    "当前账号不是通过 ChatGPT 登录，套餐信息可能不完整。".to_string(),
-                );
+                warnings.push(locale.text(
+                    "This account was not signed in through ChatGPT, so plan information may be incomplete.",
+                    "当前账号不是通过 ChatGPT 登录，套餐信息可能不完整。",
+                ));
             }
         }
         if auth.openai_api_key.is_some() {
-            warnings.push(
-                "本地检测到 OPENAI_API_KEY；当前应用仍优先使用 ChatGPT/Codex 登录态。".to_string(),
-            );
+            warnings.push(locale.text(
+                "A local OPENAI_API_KEY was detected, but this app still prefers the ChatGPT/Codex sign-in state.",
+                "本地检测到 OPENAI_API_KEY；当前应用仍优先使用 ChatGPT/Codex 登录态。",
+            ));
         }
 
         Ok(ProviderSnapshot {
@@ -171,10 +191,7 @@ impl ProviderAdapter for CodexProvider {
             plan: Some(PlanSnapshot {
                 name: detected_plan.clone().map(title_case),
                 tier: detected_plan,
-                cycle: session_limits
-                    .as_ref()
-                    .map(|limits| format!("{} 分钟窗口", limits.window_minutes))
-                    .or_else(|| Some("基于会话".to_string())),
+                cycle: format_plan_cycle(locale, session_limits.as_ref()),
                 renewal_at: session_limits.as_ref().and_then(|limits| limits.reset_at.clone()),
                 source: Some(if session_limits.is_some() {
                     "session-rate-limits".to_string()
@@ -372,6 +389,15 @@ fn title_case(value: String) -> String {
         Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
         None => value,
     }
+}
+
+fn format_plan_cycle(locale: AppLocale, session_limits: Option<&SessionRateLimit>) -> Option<String> {
+    session_limits
+        .map(|limits| match locale {
+            AppLocale::En => format!("{} minute window", limits.window_minutes),
+            AppLocale::ZhCn => format!("{} 分钟窗口", limits.window_minutes),
+        })
+        .or_else(|| Some(locale.text("Session-based", "基于会话")))
 }
 
 #[cfg(test)]

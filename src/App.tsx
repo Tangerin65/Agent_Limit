@@ -1,5 +1,18 @@
 import { useEffect, useState, useTransition } from "react";
 import {
+  detectSystemLocale,
+  formatCapabilityLabel,
+  formatLocalizedCountdown,
+  formatLocalizedDateTime,
+  formatLocalizedPercent,
+  formatLocalizedQuotaMeta,
+  formatLocalizedQuotaValue,
+  getTranslation,
+  readStoredLocale,
+  writeStoredLocale,
+  type AppLocale
+} from "./i18n";
+import {
   getEnvironmentDiagnostics,
   getRegisteredProviders,
   refreshProvider
@@ -11,170 +24,6 @@ import type {
 } from "./types/provider";
 
 const DEFAULT_PROVIDER = "codex";
-const TEXT = {
-  subtitle: "本机 Agent 配额监视器",
-  providerSwitcher: "Provider 切换",
-  refresh: "刷新",
-  refreshing: "刷新中...",
-  details: "详情",
-  back: "返回",
-  loadingRegistry: "正在加载本地 Provider 列表...",
-  provider: "Provider",
-  account: "账号",
-  plan: "套餐",
-  remaining: "剩余",
-  resetTime: "重置时间",
-  due: "已到期",
-  providerDetails: "Provider 详情",
-  environment: "环境诊断",
-  accountDetails: "账号详情",
-  planDetails: "套餐详情",
-  quotaDetails: "配额详情",
-  warnings: "告警",
-  rawMetadata: "原始元数据",
-  noWarnings: "当前 Provider 没有告警。",
-  noRawMetadata: "当前 Provider 没有原始元数据。",
-  noProviderMessage: "当前 Provider 没有额外说明。",
-  yes: "是",
-  no: "否",
-  planned: "计划中",
-  detected: "已检测到",
-  notDetected: "未检测到",
-  unavailable: "--",
-  message: "消息",
-  capabilities: "能力",
-  lastUpdate: "上次更新时间",
-  webview2Installed: "WebView2 已安装",
-  webview2Version: "WebView2 版本",
-  registryPath: "注册表路径",
-  codexAuth: "Codex 认证",
-  codexConfig: "Codex 配置",
-  sessionFiles: "会话文件数",
-  authPath: "认证路径",
-  sessionsRoot: "会话目录",
-  copilotApps: "Copilot Apps",
-  copilotOAuth: "Copilot OAuth",
-  copilotSessionFiles: "Copilot 会话文件数",
-  copilotAppsPath: "Copilot Apps 路径",
-  copilotSessionRoot: "Copilot 会话目录",
-  email: "邮箱",
-  identifier: "标识",
-  authMode: "认证方式",
-  sourcePath: "来源路径",
-  name: "名称",
-  tier: "层级",
-  cycle: "周期",
-  renewal: "续期时间",
-  source: "来源",
-  status: "状态",
-  used: "已用",
-  total: "总量",
-  countdown: "倒计时",
-  confidence: "置信度",
-  note: "备注",
-  percentRemaining: "剩余百分比",
-  percentUsed: "已用百分比",
-  statusReady: "可用",
-  statusDegraded: "降级",
-  statusPlanned: "计划中",
-  statusUnavailable: "不可用",
-  statusUnknown: "未知",
-  capabilityOn: "开启",
-  capabilityOff: "关闭"
-} as const;
-
-function formatQuotaValue(value?: number | null, unit?: string | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return TEXT.unavailable;
-  }
-
-  if (unit === "%") {
-    return `${value.toFixed(1)}%`;
-  }
-
-  if (unit === "requests") {
-    return `${Math.round(value)} 次`;
-  }
-
-  return value.toFixed(1);
-}
-
-function formatQuotaMeta(
-  used?: number | null,
-  total?: number | null,
-  unit?: string | null
-) {
-  if (typeof used !== "number" || Number.isNaN(used)) {
-    return TEXT.unavailable;
-  }
-
-  if (unit === "%") {
-    return `已用 ${used.toFixed(1)}%`;
-  }
-
-  if (unit === "requests") {
-    if (typeof total === "number" && !Number.isNaN(total)) {
-      return `已用 ${Math.round(used)} / ${Math.round(total)} 次`;
-    }
-
-    return `已用 ${Math.round(used)} 次`;
-  }
-
-  return `已用 ${used.toFixed(1)}`;
-}
-
-function formatPercent(value?: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return TEXT.unavailable;
-  }
-
-  return `${value.toFixed(1)}%`;
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return TEXT.unavailable;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString("zh-CN");
-}
-
-function pad(value: number) {
-  return value.toString().padStart(2, "0");
-}
-
-function formatCountdown(value: string | null | undefined, now: number) {
-  if (!value) {
-    return TEXT.unavailable;
-  }
-
-  const target = new Date(value).getTime();
-  if (Number.isNaN(target)) {
-    return TEXT.unavailable;
-  }
-
-  const diff = target - now;
-  if (diff <= 0) {
-    return TEXT.due;
-  }
-
-  const totalSeconds = Math.floor(diff / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (days > 0) {
-    return `${days}天 ${pad(hours)}时 ${pad(minutes)}分 ${pad(seconds)}秒`;
-  }
-
-  return `${pad(hours)}时 ${pad(minutes)}分 ${pad(seconds)}秒`;
-}
 
 function getSelectedSnapshot(
   snapshot: ProviderSnapshot | null,
@@ -188,9 +37,12 @@ function getSelectedSnapshot(
 }
 
 function getAccountValue(
+  locale: AppLocale,
   provider: ProviderDescriptor | null,
   snapshot: ProviderSnapshot | null
 ) {
+  const text = getTranslation(locale);
+
   if (snapshot?.account.email) {
     return snapshot.account.email;
   }
@@ -200,24 +52,27 @@ function getAccountValue(
   }
 
   if (snapshot?.account.detected) {
-    return TEXT.detected;
+    return text.detected;
   }
 
   if (provider?.status === "planned") {
-    return TEXT.planned;
+    return text.planned;
   }
 
   if (provider?.status === "degraded") {
-    return TEXT.notDetected;
+    return text.notDetected;
   }
 
-  return TEXT.unavailable;
+  return text.unavailable;
 }
 
 function getPlanValue(
+  locale: AppLocale,
   provider: ProviderDescriptor | null,
   snapshot: ProviderSnapshot | null
 ) {
+  const text = getTranslation(locale);
+
   if (snapshot?.plan?.name) {
     return snapshot.plan.name;
   }
@@ -227,10 +82,10 @@ function getPlanValue(
   }
 
   if (provider?.status === "planned") {
-    return TEXT.planned;
+    return text.planned;
   }
 
-  return TEXT.unavailable;
+  return text.unavailable;
 }
 
 function getStatusTone(status?: string) {
@@ -246,26 +101,87 @@ function getStatusTone(status?: string) {
   }
 }
 
-function formatStatus(status?: string) {
+function formatStatus(locale: AppLocale, status?: string) {
+  const text = getTranslation(locale);
+
   switch (status) {
     case "ready":
-      return TEXT.statusReady;
+      return text.statusReady;
     case "degraded":
-      return TEXT.statusDegraded;
+      return text.statusDegraded;
     case "planned":
-      return TEXT.statusPlanned;
+      return text.statusPlanned;
     case "unavailable":
-      return TEXT.statusUnavailable;
+      return text.statusUnavailable;
     default:
-      return TEXT.statusUnknown;
+      return text.statusUnknown;
   }
 }
 
-function formatPresence(value: boolean) {
-  return value ? TEXT.yes : TEXT.no;
+function formatPresence(locale: AppLocale, value: boolean) {
+  const text = getTranslation(locale);
+  return value ? text.yes : text.no;
+}
+
+function buildCopilotSecondaryLine(
+  locale: AppLocale,
+  remaining?: number | null,
+  unit?: string | null
+) {
+  const text = getTranslation(locale);
+  const value = formatLocalizedQuotaValue(locale, remaining, unit);
+  return text.remainingInline.replace("{value}", value);
+}
+
+function buildMetricPresentation(
+  locale: AppLocale,
+  providerId: string,
+  snapshot: ProviderSnapshot | null
+) {
+  const text = getTranslation(locale);
+  const quota = snapshot?.quota;
+  const isCopilot = providerId === "github-copilot";
+  const hasCopilotPercent = typeof quota?.percentRemaining === "number";
+
+  if (isCopilot && hasCopilotPercent) {
+    return {
+      label: text.remainingPercent,
+      value: formatLocalizedPercent(locale, quota?.percentRemaining),
+      valueClassName: "metric-card__value metric-card__value--remaining",
+      meta: buildCopilotSecondaryLine(locale, quota?.remaining, quota?.unit),
+      submeta: formatLocalizedQuotaMeta(
+        locale,
+        quota?.used,
+        quota?.total,
+        quota?.unit
+      )
+    };
+  }
+
+  return {
+    label: text.remaining,
+    value: formatLocalizedQuotaValue(locale, quota?.remaining, quota?.unit),
+    valueClassName: "metric-card__value metric-card__value--remaining",
+    meta: formatLocalizedQuotaMeta(locale, quota?.used, quota?.total, quota?.unit),
+    submeta:
+      quota?.unit !== "%" &&
+      (typeof quota?.percentRemaining === "number" ||
+        typeof quota?.percentUsed === "number")
+        ? `${text.percentRemaining} ${formatLocalizedPercent(
+            locale,
+            quota?.percentRemaining
+          )} · ${text.percentUsed} ${formatLocalizedPercent(
+            locale,
+            quota?.percentUsed
+          )}`
+        : null
+  };
 }
 
 export default function App() {
+  const [locale, setLocale] = useState<AppLocale>(
+    () => readStoredLocale() ?? detectSystemLocale()
+  );
   const [providers, setProviders] = useState<ProviderDescriptor[]>([]);
   const [selectedProvider, setSelectedProvider] = useState(DEFAULT_PROVIDER);
   const [snapshot, setSnapshot] = useState<ProviderSnapshot | null>(null);
@@ -277,12 +193,14 @@ export default function App() {
   const [now, setNow] = useState(() => Date.now());
   const [isPending, startTransition] = useTransition();
 
-  const handleRefresh = (providerId: string) => {
+  const text = getTranslation(locale);
+
+  const handleRefresh = (providerId: string, currentLocale: AppLocale) => {
     setError(null);
     startTransition(() => {
       void Promise.all([
-        refreshProvider(providerId),
-        getEnvironmentDiagnostics().catch(() => null)
+        refreshProvider(providerId, currentLocale),
+        getEnvironmentDiagnostics(currentLocale).catch(() => null)
       ])
         .then(([result, diagnostics]) => {
           setSnapshot(result);
@@ -295,37 +213,51 @@ export default function App() {
           setError(
             refreshError instanceof Error
               ? refreshError.message
-              : "刷新 Provider 失败。"
+              : text.providerRefreshFailed
           );
         });
     });
   };
 
   useEffect(() => {
+    writeStoredLocale(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    setInitialized(false);
+    setError(null);
+
     void (async () => {
       try {
-        const registered = await getRegisteredProviders();
+        const registered = await getRegisteredProviders(locale);
         setProviders(registered);
-        const diagnostics = await getEnvironmentDiagnostics().catch(() => null);
+
+        const diagnostics = await getEnvironmentDiagnostics(locale).catch(() => null);
         if (diagnostics) {
           setEnvironmentDiagnostics(diagnostics);
         }
+
         const defaultProvider =
           registered.find((provider) => provider.id === DEFAULT_PROVIDER)?.id ??
           registered[0]?.id ??
           DEFAULT_PROVIDER;
+
         setSelectedProvider(defaultProvider);
+
         if (defaultProvider) {
-          const result = await refreshProvider(defaultProvider);
+          const result = await refreshProvider(defaultProvider, locale);
           setSnapshot(result);
+          setNow(Date.now());
+        } else {
+          setSnapshot(null);
         }
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "初始化应用失败。");
+        setError(loadError instanceof Error ? loadError.message : text.initFailed);
       } finally {
         setInitialized(true);
       }
     })();
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (!initialized || !selectedProvider) {
@@ -336,11 +268,12 @@ export default function App() {
       return;
     }
 
-    handleRefresh(selectedProvider);
-  }, [initialized, selectedProvider, snapshot?.provider.id]);
+    handleRefresh(selectedProvider, locale);
+  }, [initialized, locale, selectedProvider, snapshot?.provider.id]);
 
   useEffect(() => {
-    const resetAt = snapshot?.provider.id === selectedProvider ? snapshot?.quota?.resetAt : null;
+    const resetAt =
+      snapshot?.provider.id === selectedProvider ? snapshot?.quota?.resetAt : null;
     if (!resetAt) {
       return undefined;
     }
@@ -363,10 +296,11 @@ export default function App() {
   const rawMeta = selectedSnapshot?.rawMeta
     ? JSON.stringify(selectedSnapshot.rawMeta, null, 2)
     : null;
-  const hasQuotaPercentages =
-    selectedSnapshot?.quota?.unit !== "%" &&
-    (typeof selectedSnapshot?.quota?.percentRemaining === "number" ||
-      typeof selectedSnapshot?.quota?.percentUsed === "number");
+  const metricPresentation = buildMetricPresentation(
+    locale,
+    selectedProvider,
+    selectedSnapshot
+  );
 
   return (
     <main className="app-shell">
@@ -376,11 +310,11 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__title">
           <p className="topbar__eyebrow">Agent Limit</p>
-          <h1>{TEXT.subtitle}</h1>
+          <h1>{text.subtitle}</h1>
         </div>
 
         <div className="topbar__controls">
-          <div className="provider-switch" role="tablist" aria-label={TEXT.providerSwitcher}>
+          <div className="provider-switch" role="tablist" aria-label={text.providerSwitcher}>
             {providers.map((provider) => (
               <button
                 key={provider.id}
@@ -398,26 +332,43 @@ export default function App() {
             ))}
           </div>
 
-          <div className="topbar__actions">
-            <button
-              className="primary-button"
-              disabled={!selectedProvider || isPending || !initialized}
-              onClick={() => handleRefresh(selectedProvider)}
-              type="button"
-            >
-              {isPending ? TEXT.refreshing : TEXT.refresh}
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() =>
-                setViewMode((current) =>
-                  current === "dashboard" ? "details" : "dashboard"
-                )
-              }
-              type="button"
-            >
-              {viewMode === "dashboard" ? TEXT.details : TEXT.back}
-            </button>
+          <div className="topbar__utility-row">
+            <label className="language-select">
+              <span className="language-select__label">{text.language}</span>
+              <select
+                className="language-select__input"
+                value={locale}
+                onChange={(event) => {
+                  const nextLocale = event.target.value as AppLocale;
+                  setLocale(nextLocale);
+                }}
+              >
+                <option value="en">English</option>
+                <option value="zh-CN">简体中文</option>
+              </select>
+            </label>
+
+            <div className="topbar__actions">
+              <button
+                className="primary-button"
+                disabled={!selectedProvider || isPending || !initialized}
+                onClick={() => handleRefresh(selectedProvider, locale)}
+                type="button"
+              >
+                {isPending ? text.refreshing : text.refresh}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  setViewMode((current) =>
+                    current === "dashboard" ? "details" : "dashboard"
+                  )
+                }
+                type="button"
+              >
+                {viewMode === "dashboard" ? text.details : text.back}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -431,66 +382,53 @@ export default function App() {
       ))}
 
       {!initialized && !error ? (
-        <section className="banner">{TEXT.loadingRegistry}</section>
+        <section className="banner">{text.loadingRegistry}</section>
       ) : null}
 
       {viewMode === "dashboard" ? (
         <section className="dashboard-view">
           <section className="summary-grid">
             <article className="info-card">
-              <div className="info-card__label">{TEXT.provider}</div>
+              <div className="info-card__label">{text.provider}</div>
               <div className="info-card__value">
-                {selectedSnapshot?.provider.name ?? activeProvider?.name ?? TEXT.unavailable}
+                {selectedSnapshot?.provider.name ?? activeProvider?.name ?? text.unavailable}
               </div>
             </article>
 
             <article className="info-card">
-              <div className="info-card__label">{TEXT.account}</div>
+              <div className="info-card__label">{text.account}</div>
               <div className="info-card__value">
-                {getAccountValue(activeProvider, selectedSnapshot)}
+                {getAccountValue(locale, activeProvider, selectedSnapshot)}
               </div>
             </article>
 
             <article className="info-card">
-              <div className="info-card__label">{TEXT.plan}</div>
+              <div className="info-card__label">{text.plan}</div>
               <div className="info-card__value">
-                {getPlanValue(activeProvider, selectedSnapshot)}
+                {getPlanValue(locale, activeProvider, selectedSnapshot)}
               </div>
             </article>
           </section>
 
           <section className="metric-grid">
             <article className="metric-card metric-card--remaining">
-              <div className="info-card__label">{TEXT.remaining}</div>
-              <div className="metric-card__value metric-card__value--remaining">
-                {formatQuotaValue(
-                  selectedSnapshot?.quota?.remaining,
-                  selectedSnapshot?.quota?.unit
-                )}
+              <div className="info-card__label">{metricPresentation.label}</div>
+              <div className={metricPresentation.valueClassName}>
+                {metricPresentation.value}
               </div>
-              <p className="metric-card__meta">
-                {formatQuotaMeta(
-                  selectedSnapshot?.quota?.used,
-                  selectedSnapshot?.quota?.total,
-                  selectedSnapshot?.quota?.unit
-                )}
-              </p>
-              {hasQuotaPercentages ? (
-                <p className="metric-card__submeta">
-                  {TEXT.percentRemaining} {formatPercent(selectedSnapshot?.quota?.percentRemaining)}
-                  {" · "}
-                  {TEXT.percentUsed} {formatPercent(selectedSnapshot?.quota?.percentUsed)}
-                </p>
+              <p className="metric-card__meta">{metricPresentation.meta}</p>
+              {metricPresentation.submeta ? (
+                <p className="metric-card__submeta">{metricPresentation.submeta}</p>
               ) : null}
             </article>
 
             <article className="metric-card">
-              <div className="info-card__label">{TEXT.resetTime}</div>
+              <div className="info-card__label">{text.resetTime}</div>
               <div className="metric-card__value">
-                {formatDateTime(selectedSnapshot?.quota?.resetAt)}
+                {formatLocalizedDateTime(locale, selectedSnapshot?.quota?.resetAt)}
               </div>
               <p className="metric-card__countdown">
-                {formatCountdown(selectedSnapshot?.quota?.resetAt, now)}
+                {formatLocalizedCountdown(locale, selectedSnapshot?.quota?.resetAt, now)}
               </p>
             </article>
           </section>
@@ -500,218 +438,223 @@ export default function App() {
           <article className="detail-panel">
             <div className="detail-panel__header">
               <div>
-                <div className="detail-panel__title">{TEXT.providerDetails}</div>
+                <div className="detail-panel__title">{text.providerDetails}</div>
                 <div className="detail-panel__headline">
-                  {selectedSnapshot?.provider.name ?? activeProvider?.name ?? TEXT.unavailable}
+                  {selectedSnapshot?.provider.name ?? activeProvider?.name ?? text.unavailable}
                 </div>
               </div>
               <span className={`status-pill status-pill--${statusTone}`}>
-                {formatStatus(selectedSnapshot?.provider.status ?? activeProvider?.status)}
+                {formatStatus(locale, selectedSnapshot?.provider.status ?? activeProvider?.status)}
               </span>
             </div>
             <dl className="detail-list">
               <div>
-                <dt>{TEXT.message}</dt>
+                <dt>{text.message}</dt>
                 <dd>
                   {selectedSnapshot?.provider.message ??
                     activeProvider?.message ??
-                    TEXT.noProviderMessage}
+                    text.noProviderMessage}
                 </dd>
               </div>
               <div>
-                <dt>{TEXT.capabilities}</dt>
+                <dt>{text.capabilities}</dt>
                 <dd>
                   {activeProvider?.capabilities.length
                     ? activeProvider.capabilities
                         .map((capability) =>
-                          `${capability.kind}:${
-                            capability.available ? TEXT.capabilityOn : TEXT.capabilityOff
+                          `${formatCapabilityLabel(locale, capability.kind)}: ${
+                            capability.available ? text.capabilityOn : text.capabilityOff
                           }`
                         )
                         .join(", ")
-                    : TEXT.unavailable}
+                    : text.unavailable}
                 </dd>
               </div>
               <div>
-                <dt>{TEXT.lastUpdate}</dt>
-                <dd>{formatDateTime(selectedSnapshot?.refreshedAt)}</dd>
+                <dt>{text.lastUpdate}</dt>
+                <dd>{formatLocalizedDateTime(locale, selectedSnapshot?.refreshedAt)}</dd>
               </div>
             </dl>
           </article>
 
           <article className="detail-panel">
-            <div className="detail-panel__title">{TEXT.environment}</div>
+            <div className="detail-panel__title">{text.environment}</div>
             <dl className="detail-list">
               <div>
-                <dt>{TEXT.webview2Installed}</dt>
-                <dd>{formatPresence(environmentDiagnostics?.webview2.installed ?? false)}</dd>
+                <dt>{text.webview2Installed}</dt>
+                <dd>{formatPresence(locale, environmentDiagnostics?.webview2.installed ?? false)}</dd>
               </div>
               <div>
-                <dt>{TEXT.webview2Version}</dt>
-                <dd>{environmentDiagnostics?.webview2.version ?? TEXT.unavailable}</dd>
+                <dt>{text.webview2Version}</dt>
+                <dd>{environmentDiagnostics?.webview2.version ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.registryPath}</dt>
-                <dd>{environmentDiagnostics?.webview2.registryPath ?? TEXT.unavailable}</dd>
+                <dt>{text.registryPath}</dt>
+                <dd>{environmentDiagnostics?.webview2.registryPath ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.codexAuth}</dt>
-                <dd>{formatPresence(environmentDiagnostics?.codex.authExists ?? false)}</dd>
+                <dt>{text.codexAuth}</dt>
+                <dd>{formatPresence(locale, environmentDiagnostics?.codex.authExists ?? false)}</dd>
               </div>
               <div>
-                <dt>{TEXT.codexConfig}</dt>
-                <dd>{formatPresence(environmentDiagnostics?.codex.configExists ?? false)}</dd>
+                <dt>{text.codexConfig}</dt>
+                <dd>{formatPresence(locale, environmentDiagnostics?.codex.configExists ?? false)}</dd>
               </div>
               <div>
-                <dt>{TEXT.sessionFiles}</dt>
+                <dt>{text.sessionFiles}</dt>
                 <dd>{environmentDiagnostics?.codex.sessionFileCount ?? 0}</dd>
               </div>
               <div>
-                <dt>{TEXT.authPath}</dt>
-                <dd>{environmentDiagnostics?.codex.authPath ?? TEXT.unavailable}</dd>
+                <dt>{text.authPath}</dt>
+                <dd>{environmentDiagnostics?.codex.authPath ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.sessionsRoot}</dt>
-                <dd>{environmentDiagnostics?.codex.sessionsRoot ?? TEXT.unavailable}</dd>
+                <dt>{text.sessionsRoot}</dt>
+                <dd>{environmentDiagnostics?.codex.sessionsRoot ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.copilotApps}</dt>
-                <dd>{formatPresence(environmentDiagnostics?.copilot.appsExists ?? false)}</dd>
+                <dt>{text.copilotApps}</dt>
+                <dd>{formatPresence(locale, environmentDiagnostics?.copilot.appsExists ?? false)}</dd>
               </div>
               <div>
-                <dt>{TEXT.copilotOAuth}</dt>
-                <dd>{formatPresence(environmentDiagnostics?.copilot.oauthExists ?? false)}</dd>
+                <dt>{text.copilotOAuth}</dt>
+                <dd>{formatPresence(locale, environmentDiagnostics?.copilot.oauthExists ?? false)}</dd>
               </div>
               <div>
-                <dt>{TEXT.copilotSessionFiles}</dt>
+                <dt>{text.copilotSessionFiles}</dt>
                 <dd>{environmentDiagnostics?.copilot.sessionFileCount ?? 0}</dd>
               </div>
               <div>
-                <dt>{TEXT.copilotAppsPath}</dt>
-                <dd>{environmentDiagnostics?.copilot.appsPath ?? TEXT.unavailable}</dd>
+                <dt>{text.copilotAppsPath}</dt>
+                <dd>{environmentDiagnostics?.copilot.appsPath ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.copilotSessionRoot}</dt>
-                <dd>{environmentDiagnostics?.copilot.sessionRoot ?? TEXT.unavailable}</dd>
-              </div>
-            </dl>
-          </article>
-
-          <article className="detail-panel">
-            <div className="detail-panel__title">{TEXT.accountDetails}</div>
-            <dl className="detail-list">
-              <div>
-                <dt>{TEXT.email}</dt>
-                <dd>{selectedSnapshot?.account.email ?? TEXT.unavailable}</dd>
-              </div>
-              <div>
-                <dt>{TEXT.identifier}</dt>
-                <dd>{selectedSnapshot?.account.identifier ?? TEXT.unavailable}</dd>
-              </div>
-              <div>
-                <dt>{TEXT.authMode}</dt>
-                <dd>{selectedSnapshot?.account.authMode ?? TEXT.unavailable}</dd>
-              </div>
-              <div>
-                <dt>{TEXT.sourcePath}</dt>
-                <dd>{selectedSnapshot?.account.sourcePath ?? TEXT.unavailable}</dd>
+                <dt>{text.copilotSessionRoot}</dt>
+                <dd>{environmentDiagnostics?.copilot.sessionRoot ?? text.unavailable}</dd>
               </div>
             </dl>
           </article>
 
           <article className="detail-panel">
-            <div className="detail-panel__title">{TEXT.planDetails}</div>
+            <div className="detail-panel__title">{text.accountDetails}</div>
             <dl className="detail-list">
               <div>
-                <dt>{TEXT.name}</dt>
-                <dd>{selectedSnapshot?.plan?.name ?? TEXT.unavailable}</dd>
+                <dt>{text.email}</dt>
+                <dd>{selectedSnapshot?.account.email ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.tier}</dt>
-                <dd>{selectedSnapshot?.plan?.tier ?? TEXT.unavailable}</dd>
+                <dt>{text.identifier}</dt>
+                <dd>{selectedSnapshot?.account.identifier ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.cycle}</dt>
-                <dd>{selectedSnapshot?.plan?.cycle ?? TEXT.unavailable}</dd>
+                <dt>{text.authMode}</dt>
+                <dd>{selectedSnapshot?.account.authMode ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.renewal}</dt>
-                <dd>{formatDateTime(selectedSnapshot?.plan?.renewalAt)}</dd>
-              </div>
-              <div>
-                <dt>{TEXT.source}</dt>
-                <dd>{selectedSnapshot?.plan?.source ?? TEXT.unavailable}</dd>
+                <dt>{text.sourcePath}</dt>
+                <dd>{selectedSnapshot?.account.sourcePath ?? text.unavailable}</dd>
               </div>
             </dl>
           </article>
 
           <article className="detail-panel">
-            <div className="detail-panel__title">{TEXT.quotaDetails}</div>
+            <div className="detail-panel__title">{text.planDetails}</div>
             <dl className="detail-list">
               <div>
-                <dt>{TEXT.status}</dt>
-                <dd>{formatStatus(selectedSnapshot?.quota?.status)}</dd>
+                <dt>{text.name}</dt>
+                <dd>{selectedSnapshot?.plan?.name ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.used}</dt>
+                <dt>{text.tier}</dt>
+                <dd>{selectedSnapshot?.plan?.tier ?? text.unavailable}</dd>
+              </div>
+              <div>
+                <dt>{text.cycle}</dt>
+                <dd>{selectedSnapshot?.plan?.cycle ?? text.unavailable}</dd>
+              </div>
+              <div>
+                <dt>{text.renewal}</dt>
+                <dd>{formatLocalizedDateTime(locale, selectedSnapshot?.plan?.renewalAt)}</dd>
+              </div>
+              <div>
+                <dt>{text.source}</dt>
+                <dd>{selectedSnapshot?.plan?.source ?? text.unavailable}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="detail-panel">
+            <div className="detail-panel__title">{text.quotaDetails}</div>
+            <dl className="detail-list">
+              <div>
+                <dt>{text.status}</dt>
+                <dd>{formatStatus(locale, selectedSnapshot?.quota?.status)}</dd>
+              </div>
+              <div>
+                <dt>{text.used}</dt>
                 <dd>
-                  {formatQuotaValue(
+                  {formatLocalizedQuotaValue(
+                    locale,
                     selectedSnapshot?.quota?.used,
                     selectedSnapshot?.quota?.unit
                   )}
                 </dd>
               </div>
               <div>
-                <dt>{TEXT.remaining}</dt>
+                <dt>{text.remaining}</dt>
                 <dd>
-                  {formatQuotaValue(
+                  {formatLocalizedQuotaValue(
+                    locale,
                     selectedSnapshot?.quota?.remaining,
                     selectedSnapshot?.quota?.unit
                   )}
                 </dd>
               </div>
               <div>
-                <dt>{TEXT.total}</dt>
+                <dt>{text.total}</dt>
                 <dd>
-                  {formatQuotaValue(
+                  {formatLocalizedQuotaValue(
+                    locale,
                     selectedSnapshot?.quota?.total,
                     selectedSnapshot?.quota?.unit
                   )}
                 </dd>
               </div>
               <div>
-                <dt>{TEXT.percentRemaining}</dt>
-                <dd>{formatPercent(selectedSnapshot?.quota?.percentRemaining)}</dd>
+                <dt>{text.percentRemaining}</dt>
+                <dd>{formatLocalizedPercent(locale, selectedSnapshot?.quota?.percentRemaining)}</dd>
               </div>
               <div>
-                <dt>{TEXT.percentUsed}</dt>
-                <dd>{formatPercent(selectedSnapshot?.quota?.percentUsed)}</dd>
+                <dt>{text.percentUsed}</dt>
+                <dd>{formatLocalizedPercent(locale, selectedSnapshot?.quota?.percentUsed)}</dd>
               </div>
               <div>
-                <dt>{TEXT.resetTime}</dt>
-                <dd>{formatDateTime(selectedSnapshot?.quota?.resetAt)}</dd>
+                <dt>{text.resetTime}</dt>
+                <dd>{formatLocalizedDateTime(locale, selectedSnapshot?.quota?.resetAt)}</dd>
               </div>
               <div>
-                <dt>{TEXT.countdown}</dt>
-                <dd>{formatCountdown(selectedSnapshot?.quota?.resetAt, now)}</dd>
+                <dt>{text.countdown}</dt>
+                <dd>
+                  {formatLocalizedCountdown(locale, selectedSnapshot?.quota?.resetAt, now)}
+                </dd>
               </div>
               <div>
-                <dt>{TEXT.confidence}</dt>
-                <dd>{selectedSnapshot?.quota?.confidence ?? TEXT.unavailable}</dd>
+                <dt>{text.confidence}</dt>
+                <dd>{selectedSnapshot?.quota?.confidence ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.source}</dt>
-                <dd>{selectedSnapshot?.quota?.source ?? TEXT.unavailable}</dd>
+                <dt>{text.source}</dt>
+                <dd>{selectedSnapshot?.quota?.source ?? text.unavailable}</dd>
               </div>
               <div>
-                <dt>{TEXT.note}</dt>
-                <dd>{selectedSnapshot?.quota?.note ?? TEXT.unavailable}</dd>
+                <dt>{text.note}</dt>
+                <dd>{selectedSnapshot?.quota?.note ?? text.unavailable}</dd>
               </div>
             </dl>
           </article>
 
           <article className="detail-panel">
-            <div className="detail-panel__title">{TEXT.warnings}</div>
+            <div className="detail-panel__title">{text.warnings}</div>
             {selectedSnapshot?.warnings.length ? (
               <ul className="warning-list">
                 {selectedSnapshot.warnings.map((warning) => (
@@ -719,16 +662,16 @@ export default function App() {
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">{TEXT.noWarnings}</p>
+              <p className="empty-state">{text.noWarnings}</p>
             )}
           </article>
 
           <article className="detail-panel detail-panel--raw">
-            <div className="detail-panel__title">{TEXT.rawMetadata}</div>
+            <div className="detail-panel__title">{text.rawMetadata}</div>
             {rawMeta ? (
               <pre className="raw-meta">{rawMeta}</pre>
             ) : (
-              <p className="empty-state">{TEXT.noRawMetadata}</p>
+              <p className="empty-state">{text.noRawMetadata}</p>
             )}
           </article>
         </section>

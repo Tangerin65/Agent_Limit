@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::error::AppError;
+use crate::locale::AppLocale;
 use crate::models::{
     AccountSnapshot, PlanSnapshot, ProviderDescriptor, ProviderSnapshot, QuotaSnapshot,
 };
@@ -24,7 +25,7 @@ impl GitHubCopilotProvider {
 }
 
 impl ProviderAdapter for GitHubCopilotProvider {
-    fn descriptor(&self) -> ProviderDescriptor {
+    fn descriptor(&self, locale: AppLocale) -> ProviderDescriptor {
         let paths = CopilotPaths::detect();
         let has_login = paths.apps_path.exists() || paths.oauth_path.exists();
 
@@ -33,10 +34,15 @@ impl ProviderAdapter for GitHubCopilotProvider {
             name: "GitHub Copilot".to_string(),
             status: if has_login { "ready" } else { "degraded" }.to_string(),
             message: Some(if has_login {
-                "读取本地 GitHub Copilot 登录态，并从 GitHub 刷新套餐与配额信息。"
-                    .to_string()
+                locale.text(
+                    "Reads local GitHub Copilot sign-in state and refreshes plan/quota data from GitHub.",
+                    "读取本地 GitHub Copilot 登录态，并从 GitHub 刷新套餐与配额信息。",
+                )
             } else {
-                "当前用户目录中未找到 GitHub Copilot 登录文件。".to_string()
+                locale.text(
+                    "No GitHub Copilot sign-in file was found in the current user directory.",
+                    "当前用户目录中未找到 GitHub Copilot 登录文件。",
+                )
             }),
             capabilities: vec![
                 capability("account", has_login),
@@ -46,9 +52,9 @@ impl ProviderAdapter for GitHubCopilotProvider {
         }
     }
 
-    fn refresh(&self) -> Result<ProviderSnapshot, AppError> {
+    fn refresh(&self, locale: AppLocale) -> Result<ProviderSnapshot, AppError> {
         let paths = CopilotPaths::detect();
-        let descriptor = self.descriptor();
+        let descriptor = self.descriptor(locale);
         let refreshed_at = Utc::now().to_rfc3339();
 
         let login = read_login(&paths)?;
@@ -74,11 +80,15 @@ impl ProviderAdapter for GitHubCopilotProvider {
                     confidence: Some("none".to_string()),
                     reset_at: None,
                     source: Some("local-filesystem".to_string()),
-                    note: Some("未找到 GitHub Copilot 登录文件。".to_string()),
+                    note: Some(locale.text(
+                        "GitHub Copilot sign-in files were not found.",
+                        "未找到 GitHub Copilot 登录文件。",
+                    )),
                 }),
-                warnings: vec![
-                    "当前 Windows 用户似乎尚未登录 GitHub Copilot。".to_string(),
-                ],
+                warnings: vec![locale.text(
+                    "The current Windows user does not appear to be signed in to GitHub Copilot.",
+                    "当前 Windows 用户似乎尚未登录 GitHub Copilot。",
+                )],
                 refreshed_at,
                 raw_meta: Some(json!({
                     "appsPath": paths.apps_path.display().to_string(),
@@ -99,7 +109,7 @@ impl ProviderAdapter for GitHubCopilotProvider {
 
         match fetch_remote_user(&login.username, &login.token) {
             Ok(remote) => {
-                let quota = build_quota_snapshot(&remote);
+                let quota = build_quota_snapshot(&remote, locale);
                 let plan = Some(PlanSnapshot {
                     name: Some(format_plan_name(&remote)),
                     tier: Some(remote.access_type_sku.clone()),
@@ -110,10 +120,10 @@ impl ProviderAdapter for GitHubCopilotProvider {
 
                 let mut warnings = Vec::new();
                 if quota.as_ref().is_some_and(|snapshot| snapshot.status != "available") {
-                    warnings.push(
-                        "已检测到 GitHub Copilot 账号，但当前套餐或上下文未返回 premium requests 配额。"
-                            .to_string(),
-                    );
+                    warnings.push(locale.text(
+                        "A GitHub Copilot account was detected, but the current plan or context did not return premium requests quota data.",
+                        "已检测到 GitHub Copilot 账号，但当前套餐或上下文未返回 premium requests 配额。",
+                    ));
                 }
 
                 Ok(ProviderSnapshot {
@@ -140,10 +150,10 @@ impl ProviderAdapter for GitHubCopilotProvider {
             Err(error) => Ok(ProviderSnapshot {
                 provider: ProviderDescriptor {
                     status: "degraded".to_string(),
-                    message: Some(
-                        "已检测到本地 GitHub Copilot 登录态，但刷新配额请求失败。"
-                            .to_string(),
-                    ),
+                    message: Some(locale.text(
+                        "Local GitHub Copilot sign-in was detected, but the quota refresh request failed.",
+                        "已检测到本地 GitHub Copilot 登录态，但刷新配额请求失败。",
+                    )),
                     ..descriptor
                 },
                 account,
@@ -159,12 +169,15 @@ impl ProviderAdapter for GitHubCopilotProvider {
                     confidence: Some("low".to_string()),
                     reset_at: None,
                     source: Some("copilot_internal/user".to_string()),
-                    note: Some(
-                        "配额刷新失败；如果持续出现，请在 GitHub Copilot 中重新登录。"
-                            .to_string(),
-                    ),
+                    note: Some(locale.text(
+                        "Quota refresh failed. If this keeps happening, sign in to GitHub Copilot again.",
+                        "配额刷新失败；如果持续出现，请在 GitHub Copilot 中重新登录。",
+                    )),
                 }),
-                warnings: vec![format!("GitHub Copilot 刷新失败：{error}")],
+                warnings: vec![match locale {
+                    AppLocale::En => format!("GitHub Copilot refresh failed: {error}"),
+                    AppLocale::ZhCn => format!("GitHub Copilot 刷新失败：{error}"),
+                }],
                 refreshed_at,
                 raw_meta: Some(json!({
                     "appsPath": paths.apps_path.display().to_string(),
@@ -333,7 +346,7 @@ fn fetch_remote_user(username: &str, token: &str) -> Result<CopilotRemoteUser, A
     }
 }
 
-fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
+fn build_quota_snapshot(remote: &CopilotRemoteUser, locale: AppLocale) -> Option<QuotaSnapshot> {
     let premium = remote
         .quota_snapshots
         .as_ref()
@@ -351,7 +364,10 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
             confidence: Some("none".to_string()),
             reset_at: resolve_reset_at(remote),
             source: Some("copilot_internal/user".to_string()),
-            note: Some("未返回 premium requests 配额快照。".to_string()),
+            note: Some(locale.text(
+                "No premium requests quota snapshot was returned.",
+                "未返回 premium requests 配额快照。",
+            )),
         });
     };
 
@@ -374,10 +390,10 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
             confidence: Some("low".to_string()),
             reset_at: resolve_reset_at(remote),
             source: Some("copilot_internal/user".to_string()),
-            note: Some(
-                "GitHub Copilot 返回了套餐信息，但没有可计算的有限 premium requests 配额。"
-                    .to_string(),
-            ),
+            note: Some(locale.text(
+                "GitHub Copilot returned plan information, but no finite premium requests quota that could be calculated.",
+                "GitHub Copilot 返回了套餐信息，但没有可计算的有限 premium requests 配额。",
+            )),
         });
     }
 
@@ -394,10 +410,10 @@ fn build_quota_snapshot(remote: &CopilotRemoteUser) -> Option<QuotaSnapshot> {
         confidence: Some("high".to_string()),
         reset_at: resolve_reset_at(remote),
         source: Some("copilot_internal/user".to_string()),
-        note: Some(
-            "数据来自本地登录账号对应的 GitHub Copilot 账户元数据。"
-                .to_string(),
-        ),
+        note: Some(locale.text(
+            "Data comes from GitHub Copilot account metadata for the locally signed-in user.",
+            "数据来自本地登录账号对应的 GitHub Copilot 账户元数据。",
+        )),
     })
 }
 
@@ -458,6 +474,7 @@ fn title_case(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{build_quota_snapshot, format_plan_name, resolve_reset_at, CopilotRemoteUser, CopilotQuotaSnapshot};
+    use crate::locale::AppLocale;
     use std::collections::HashMap;
 
     #[test]
@@ -520,7 +537,8 @@ mod tests {
             quota_snapshots: Some(snapshots),
         };
 
-        let quota = build_quota_snapshot(&remote).expect("quota snapshot should exist");
+        let quota = build_quota_snapshot(&remote, AppLocale::En)
+            .expect("quota snapshot should exist");
 
         assert_eq!(quota.status, "available");
         assert_eq!(quota.total, Some(300.0));

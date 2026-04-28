@@ -2,13 +2,14 @@ use std::path::PathBuf;
 
 use walkdir::WalkDir;
 
+use crate::locale::AppLocale;
 use crate::models::{
     CodexEnvironmentStatus, CopilotEnvironmentStatus, EnvironmentDiagnostics, WebView2Status,
 };
 
 const WEBVIEW2_CLIENT_ID: &str = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
 
-pub fn inspect_environment() -> EnvironmentDiagnostics {
+pub fn inspect_environment(locale: AppLocale) -> EnvironmentDiagnostics {
     let webview2 = inspect_webview2();
     let codex = inspect_codex();
     let copilot = inspect_copilot();
@@ -16,41 +17,41 @@ pub fn inspect_environment() -> EnvironmentDiagnostics {
     let mut warnings = Vec::new();
 
     if !webview2.installed {
-        warnings.push(
-            "未检测到 WebView2 Runtime。若使用单文件 exe，请先通过安装包完成运行时安装。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "WebView2 Runtime was not detected. If you are using the portable exe, install the packaged build once first.",
+            "未检测到 WebView2 Runtime。若使用单文件 exe，请先通过安装包完成运行时安装。",
+        ));
     }
 
     if !codex.auth_exists {
-        warnings.push(
-            "当前 Windows 账户未检测到 Codex 登录态，请先登录 Codex 后再刷新。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "No Codex sign-in was detected for the current Windows account. Sign in to Codex first, then refresh.",
+            "当前 Windows 账户未检测到 Codex 登录态，请先登录 Codex 后再刷新。",
+        ));
     } else if codex.session_file_count == 0 {
-        warnings.push(
-            "已检测到 Codex 登录态，但还没有本地会话历史。先打开一次 Codex 生成会话数据。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "Codex sign-in was detected, but there is no local session history yet. Open Codex once to generate session data.",
+            "已检测到 Codex 登录态，但还没有本地会话历史。先打开一次 Codex 生成会话数据。",
+        ));
     }
 
     if codex.auth_exists && !codex.config_exists {
-        warnings.push(
-            "已检测到 Codex 认证，但缺少 config.toml，部分套餐字段可能不完整。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "Codex auth was detected, but config.toml is missing, so some plan fields may be incomplete.",
+            "已检测到 Codex 认证，但缺少 config.toml，部分套餐字段可能不完整。",
+        ));
     }
 
     if !copilot.apps_exists && !copilot.oauth_exists {
-        warnings.push(
-            "当前 Windows 账户未检测到 GitHub Copilot 登录态，请先登录 Copilot 后再刷新。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "No GitHub Copilot sign-in was detected for the current Windows account. Sign in to Copilot first, then refresh.",
+            "当前 Windows 账户未检测到 GitHub Copilot 登录态，请先登录 Copilot 后再刷新。",
+        ));
     } else if copilot.session_file_count == 0 {
-        warnings.push(
-            "已检测到 GitHub Copilot 登录态，但还没有本地会话历史。先打开一次 Copilot 生成本地会话数据。"
-                .to_string(),
-        );
+        warnings.push(locale.text(
+            "GitHub Copilot sign-in was detected, but there is no local session history yet. Open Copilot once to generate local session data.",
+            "已检测到 GitHub Copilot 登录态，但还没有本地会话历史。先打开一次 Copilot 生成本地会话数据。",
+        ));
     }
 
     EnvironmentDiagnostics {

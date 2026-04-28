@@ -4,15 +4,23 @@ import type {
   ProviderDescriptor,
   ProviderSnapshot
 } from "../types/provider";
+import type { AppLocale } from "../i18n";
 
-export function getRegisteredProviders(): Promise<ProviderDescriptor[]> {
-  return invoke("get_registered_providers");
+export function getRegisteredProviders(
+  locale: AppLocale
+): Promise<ProviderDescriptor[]> {
+  return invoke("get_registered_providers", { locale });
 }
 
-export function refreshProvider(providerId: string): Promise<ProviderSnapshot> {
-  return invoke("refresh_provider", { providerId });
+export function refreshProvider(
+  providerId: string,
+  locale: AppLocale
+): Promise<ProviderSnapshot> {
+  return invoke("refresh_provider", { providerId, locale });
 }
 
-export function getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostics> {
-  return invoke("get_environment_diagnostics");
+export function getEnvironmentDiagnostics(
+  locale: AppLocale
+): Promise<EnvironmentDiagnostics> {
+  return invoke("get_environment_diagnostics", { locale });
 }

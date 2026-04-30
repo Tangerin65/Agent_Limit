@@ -88,5 +88,26 @@ export interface EnvironmentDiagnostics {
   webview2: WebView2Status;
   codex: CodexEnvironmentStatus;
   copilot: CopilotEnvironmentStatus;
+  apiPlatforms: ApiPlatformsEnvironmentStatus;
   warnings: string[];
+}
+
+export interface ApiKeyStatus {
+  configured: boolean;
+  source?: string | null;
+  keyMask?: string | null;
+  displayName?: string | null;
+  baseUrl?: string | null;
+  hasLocalConfig: boolean;
+}
+
+export interface ApiPlatformsEnvironmentStatus {
+  openrouter: ApiKeyStatus;
+  customProvider: ApiKeyStatus;
+}
+
+export interface ProviderSettingsInput {
+  apiKey?: string | null;
+  displayName?: string | null;
+  baseUrl?: string | null;
 }

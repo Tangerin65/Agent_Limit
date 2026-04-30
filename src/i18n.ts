@@ -45,6 +45,7 @@ type TranslationSet = {
   remaining: string;
   remainingPercent: string;
   remainingRequests: string;
+  remainingCredits: string;
   resetTime: string;
   due: string;
   providerDetails: string;
@@ -79,10 +80,29 @@ type TranslationSet = {
   copilotSessionFiles: string;
   copilotAppsPath: string;
   copilotSessionRoot: string;
+  openrouterApiKey: string;
+  customProviderApiKey: string;
+  customProviderDisplayName: string;
+  customProviderBaseUrl: string;
   email: string;
   identifier: string;
   authMode: string;
   sourcePath: string;
+  providerSetup: string;
+  apiKey: string;
+  displayName: string;
+  baseUrl: string;
+  configuredSource: string;
+  keyMasked: string;
+  save: string;
+  saving: string;
+  edit: string;
+  cancel: string;
+  clearLocalConfig: string;
+  keepExistingApiKeyHint: string;
+  configured: string;
+  notConfigured: string;
+  localConfigOnlyAction: string;
   name: string;
   tier: string;
   cycle: string;
@@ -109,6 +129,7 @@ type TranslationSet = {
   providerRefreshFailed: string;
   initFailed: string;
   requestsUnitSuffix: string;
+  creditsUnitSuffix: string;
   usedPrefix: string;
   hoursSuffix: string;
   minutesSuffix: string;
@@ -136,6 +157,7 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     remaining: "剩余",
     remainingPercent: "剩余百分比",
     remainingRequests: "剩余调用次数",
+    remainingCredits: "剩余 Credit",
     resetTime: "重置时间",
     due: "已到期",
     providerDetails: "Provider 详情",
@@ -170,10 +192,29 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     copilotSessionFiles: "Copilot 会话文件数",
     copilotAppsPath: "Copilot Apps 路径",
     copilotSessionRoot: "Copilot 会话目录",
+    openrouterApiKey: "OpenRouter API Key",
+    customProviderApiKey: "自定义 Provider API Key",
+    customProviderDisplayName: "自定义 Provider 名称",
+    customProviderBaseUrl: "自定义 Provider Base URL",
     email: "邮箱",
     identifier: "标识",
     authMode: "认证方式",
     sourcePath: "来源路径",
+    providerSetup: "Provider 配置",
+    apiKey: "API Key",
+    displayName: "显示名称",
+    baseUrl: "Base URL",
+    configuredSource: "配置来源",
+    keyMasked: "脱敏 Key",
+    save: "保存",
+    saving: "保存中...",
+    edit: "编辑",
+    cancel: "取消",
+    clearLocalConfig: "清除本地配置",
+    keepExistingApiKeyHint: "编辑时将 API Key 留空可保留当前已保存的 Key。",
+    configured: "已配置",
+    notConfigured: "未配置",
+    localConfigOnlyAction: "仅清除本地配置；若存在环境变量，将自动回退到环境变量。",
     name: "名称",
     tier: "层级",
     cycle: "周期",
@@ -200,6 +241,7 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     providerRefreshFailed: "刷新 Provider 失败。",
     initFailed: "初始化应用失败。",
     requestsUnitSuffix: "次",
+    creditsUnitSuffix: "Credit",
     usedPrefix: "已用",
     hoursSuffix: "时",
     minutesSuffix: "分",
@@ -225,6 +267,7 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     remaining: "Remaining",
     remainingPercent: "Remaining %",
     remainingRequests: "Remaining Requests",
+    remainingCredits: "Remaining Credits",
     resetTime: "Reset Time",
     due: "Due",
     providerDetails: "Provider Details",
@@ -259,10 +302,29 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     copilotSessionFiles: "Copilot Session Files",
     copilotAppsPath: "Copilot Apps Path",
     copilotSessionRoot: "Copilot Session Root",
+    openrouterApiKey: "OpenRouter API Key",
+    customProviderApiKey: "Custom Provider API Key",
+    customProviderDisplayName: "Custom Provider Name",
+    customProviderBaseUrl: "Custom Provider Base URL",
     email: "Email",
     identifier: "Identifier",
     authMode: "Auth Mode",
     sourcePath: "Source Path",
+    providerSetup: "Provider Setup",
+    apiKey: "API Key",
+    displayName: "Display Name",
+    baseUrl: "Base URL",
+    configuredSource: "Configured Source",
+    keyMasked: "Masked Key",
+    save: "Save",
+    saving: "Saving...",
+    edit: "Edit",
+    cancel: "Cancel",
+    clearLocalConfig: "Clear Local Config",
+    keepExistingApiKeyHint: "Leave API Key blank while editing to keep the currently saved key.",
+    configured: "Configured",
+    notConfigured: "Not Configured",
+    localConfigOnlyAction: "This only clears local config. If an environment variable exists, the app will fall back to it automatically.",
     name: "Name",
     tier: "Tier",
     cycle: "Cycle",
@@ -289,6 +351,7 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     providerRefreshFailed: "Failed to refresh provider.",
     initFailed: "Failed to initialize the app.",
     requestsUnitSuffix: "requests",
+    creditsUnitSuffix: "credits",
     usedPrefix: "Used",
     hoursSuffix: "h",
     minutesSuffix: "m",
@@ -346,6 +409,10 @@ export function formatLocalizedQuotaValue(
       : `${Math.round(value)} ${text.requestsUnitSuffix}`;
   }
 
+  if (unit === "credits" || unit === "usd") {
+    return `${value.toFixed(2)} ${text.creditsUnitSuffix}`;
+  }
+
   return value.toFixed(1);
 }
 
@@ -376,6 +443,18 @@ export function formatLocalizedQuotaMeta(
     return locale === "zh-CN"
       ? `${text.usedPrefix} ${formatLocalizedQuotaValue(locale, used, unit)}`
       : `${text.usedPrefix} ${formatLocalizedQuotaValue(locale, used, unit)}`;
+  }
+
+  if (unit === "credits" || unit === "usd") {
+    if (typeof total === "number" && !Number.isNaN(total)) {
+      const usedText = formatLocalizedQuotaValue(locale, used, unit);
+      const totalText = formatLocalizedQuotaValue(locale, total, unit);
+      return text.usageInline
+        .replace("{used}", usedText)
+        .replace("{total}", totalText);
+    }
+
+    return `${text.usedPrefix} ${formatLocalizedQuotaValue(locale, used, unit)}`;
   }
 
   return locale === "zh-CN" ? `${text.usedPrefix} ${used.toFixed(1)}` : `${text.usedPrefix} ${used.toFixed(1)}`;

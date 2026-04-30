@@ -4,8 +4,10 @@ use walkdir::WalkDir;
 
 use crate::locale::AppLocale;
 use crate::models::{
-    CodexEnvironmentStatus, CopilotEnvironmentStatus, EnvironmentDiagnostics, WebView2Status,
+    ApiKeyStatus, ApiPlatformsEnvironmentStatus, CodexEnvironmentStatus, CopilotEnvironmentStatus,
+    EnvironmentDiagnostics, WebView2Status,
 };
+use crate::provider_settings::get_provider_settings;
 
 const WEBVIEW2_CLIENT_ID: &str = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
 
@@ -13,6 +15,7 @@ pub fn inspect_environment(locale: AppLocale) -> EnvironmentDiagnostics {
     let webview2 = inspect_webview2();
     let codex = inspect_codex();
     let copilot = inspect_copilot();
+    let api_platforms = inspect_api_platforms();
 
     let mut warnings = Vec::new();
 
@@ -53,13 +56,34 @@ pub fn inspect_environment(locale: AppLocale) -> EnvironmentDiagnostics {
             "已检测到 GitHub Copilot 登录态，但还没有本地会话历史。先打开一次 Copilot 生成本地会话数据。",
         ));
     }
-
     EnvironmentDiagnostics {
         webview2,
         codex,
         copilot,
+        api_platforms,
         warnings,
     }
+}
+
+fn inspect_api_platforms() -> ApiPlatformsEnvironmentStatus {
+    get_provider_settings().unwrap_or_else(|_| ApiPlatformsEnvironmentStatus {
+        openrouter: ApiKeyStatus {
+            configured: false,
+            source: None,
+            key_mask: None,
+            display_name: None,
+            base_url: None,
+            has_local_config: false,
+        },
+        custom_provider: ApiKeyStatus {
+            configured: false,
+            source: None,
+            key_mask: None,
+            display_name: None,
+            base_url: None,
+            has_local_config: false,
+        },
+    })
 }
 
 fn inspect_codex() -> CodexEnvironmentStatus {

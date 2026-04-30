@@ -1,4 +1,4 @@
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import {
   detectSystemLocale,
   formatCapabilityLabel,
@@ -13,13 +13,19 @@ import {
   type AppLocale
 } from "./i18n";
 import {
+  clearProviderSettings,
   getEnvironmentDiagnostics,
+  getProviderSettings,
   getRegisteredProviders,
-  refreshProvider
+  refreshProvider,
+  saveProviderSettings
 } from "./lib/api";
 import type {
+  ApiKeyStatus,
+  ApiPlatformsEnvironmentStatus,
   EnvironmentDiagnostics,
   ProviderDescriptor,
+  ProviderSettingsInput,
   ProviderSnapshot
 } from "./types/provider";
 
@@ -141,7 +147,28 @@ function buildMetricPresentation(
   const text = getTranslation(locale);
   const quota = snapshot?.quota;
   const isCopilot = providerId === "github-copilot";
+  const isApiCreditProvider = providerId === "openrouter";
   const hasCopilotPercent = typeof quota?.percentRemaining === "number";
+
+  if (isApiCreditProvider) {
+    return {
+      label: text.remainingCredits,
+      value: formatLocalizedQuotaValue(locale, quota?.remaining, quota?.unit),
+      valueClassName: "metric-card__value metric-card__value--remaining",
+      meta: formatLocalizedQuotaMeta(locale, quota?.used, quota?.total, quota?.unit),
+      submeta:
+        typeof quota?.percentRemaining === "number" ||
+        typeof quota?.percentUsed === "number"
+          ? `${text.percentRemaining} ${formatLocalizedPercent(
+              locale,
+              quota?.percentRemaining
+            )} · ${text.percentUsed} ${formatLocalizedPercent(
+              locale,
+              quota?.percentUsed
+            )}`
+          : null
+    };
+  }
 
   if (isCopilot && hasCopilotPercent) {
     return {
@@ -178,6 +205,46 @@ function buildMetricPresentation(
   };
 }
 
+function getActiveProviderSettings(
+  settings: ApiPlatformsEnvironmentStatus | null,
+  providerId: string
+) {
+  switch (providerId) {
+    case "openrouter":
+      return settings?.openrouter ?? null;
+    case "custom-provider":
+      return settings?.customProvider ?? null;
+    default:
+      return null;
+  }
+}
+
+function isSetupProvider(providerId: string) {
+  return providerId === "openrouter" || providerId === "custom-provider";
+}
+
+function getProviderSettingsPayload(
+  providerId: string,
+  values: {
+    openrouterApiKey: string;
+    customDisplayName: string;
+    customBaseUrl: string;
+    customApiKey: string;
+  }
+): ProviderSettingsInput {
+  if (providerId === "openrouter") {
+    return {
+      apiKey: values.openrouterApiKey
+    };
+  }
+
+  return {
+    displayName: values.customDisplayName,
+    baseUrl: values.customBaseUrl,
+    apiKey: values.customApiKey
+  };
+}
+
 export default function App() {
   const [locale, setLocale] = useState<AppLocale>(
     () => readStoredLocale() ?? detectSystemLocale()
@@ -185,38 +252,128 @@ export default function App() {
   const [providers, setProviders] = useState<ProviderDescriptor[]>([]);
   const [selectedProvider, setSelectedProvider] = useState(DEFAULT_PROVIDER);
   const [snapshot, setSnapshot] = useState<ProviderSnapshot | null>(null);
+  const [providerSettings, setProviderSettings] =
+    useState<ApiPlatformsEnvironmentStatus | null>(null);
   const [environmentDiagnostics, setEnvironmentDiagnostics] =
     useState<EnvironmentDiagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [providerFormError, setProviderFormError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [viewMode, setViewMode] = useState<"dashboard" | "details">("dashboard");
   const [now, setNow] = useState(() => Date.now());
-  const [isPending, startTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isClearingSettings, setIsClearingSettings] = useState(false);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [openrouterApiKey, setOpenrouterApiKey] = useState("");
+  const [customDisplayName, setCustomDisplayName] = useState("");
+  const [customBaseUrl, setCustomBaseUrl] = useState("");
+  const [customApiKey, setCustomApiKey] = useState("");
 
   const text = getTranslation(locale);
 
-  const handleRefresh = (providerId: string, currentLocale: AppLocale) => {
+  const resetProviderForm = (providerId?: string) => {
+    if (!providerId || providerId === "openrouter") {
+      setOpenrouterApiKey("");
+    }
+
+    if (!providerId || providerId === "custom-provider") {
+      setCustomDisplayName("");
+      setCustomBaseUrl("");
+      setCustomApiKey("");
+    }
+  };
+
+  const hydrateEditableValues = (providerId: string, settings: ApiKeyStatus | null) => {
+    setProviderFormError(null);
+
+    if (providerId === "openrouter") {
+      setOpenrouterApiKey("");
+      return;
+    }
+
+    setCustomDisplayName(settings?.displayName ?? "");
+    setCustomBaseUrl(settings?.baseUrl ?? "");
+    setCustomApiKey("");
+  };
+
+  const handleRefresh = async (providerId: string, currentLocale: AppLocale) => {
     setError(null);
-    startTransition(() => {
-      void Promise.all([
+    setIsRefreshing(true);
+
+    try {
+      const [registered, result, diagnostics, settings] = await Promise.all([
+        getRegisteredProviders(currentLocale),
         refreshProvider(providerId, currentLocale),
-        getEnvironmentDiagnostics(currentLocale).catch(() => null)
-      ])
-        .then(([result, diagnostics]) => {
-          setSnapshot(result);
-          if (diagnostics) {
-            setEnvironmentDiagnostics(diagnostics);
-          }
-          setNow(Date.now());
-        })
-        .catch((refreshError) => {
-          setError(
-            refreshError instanceof Error
-              ? refreshError.message
-              : text.providerRefreshFailed
-          );
-        });
-    });
+        getEnvironmentDiagnostics(currentLocale).catch(() => null),
+        getProviderSettings(currentLocale).catch(() => null)
+      ]);
+
+      setProviders(registered);
+      setSnapshot(result);
+      if (diagnostics) {
+        setEnvironmentDiagnostics(diagnostics);
+      }
+      if (settings) {
+        setProviderSettings(settings);
+      }
+      setNow(Date.now());
+    } catch (refreshError) {
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : text.providerRefreshFailed
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleSaveSettings = async (providerId: string) => {
+    setError(null);
+    setProviderFormError(null);
+    setIsSavingSettings(true);
+
+    try {
+      const payload = getProviderSettingsPayload(providerId, {
+        openrouterApiKey,
+        customDisplayName,
+        customBaseUrl,
+        customApiKey
+      });
+
+      const settings = await saveProviderSettings(providerId, payload, locale);
+      setProviderSettings(settings);
+      setEditingProviderId(null);
+      resetProviderForm(providerId);
+      await handleRefresh(providerId, locale);
+    } catch (saveError) {
+      setProviderFormError(
+        saveError instanceof Error ? saveError.message : text.initFailed
+      );
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleClearSettings = async (providerId: string) => {
+    setError(null);
+    setProviderFormError(null);
+    setIsClearingSettings(true);
+
+    try {
+      const settings = await clearProviderSettings(providerId, locale);
+      setProviderSettings(settings);
+      setEditingProviderId(null);
+      resetProviderForm(providerId);
+      await handleRefresh(providerId, locale);
+    } catch (clearError) {
+      setProviderFormError(
+        clearError instanceof Error ? clearError.message : text.initFailed
+      );
+    } finally {
+      setIsClearingSettings(false);
+    }
   };
 
   useEffect(() => {
@@ -224,15 +381,25 @@ export default function App() {
   }, [locale]);
 
   useEffect(() => {
+    let isCancelled = false;
     setInitialized(false);
     setError(null);
 
     void (async () => {
       try {
-        const registered = await getRegisteredProviders(locale);
-        setProviders(registered);
+        const [registered, settings, diagnostics] = await Promise.all([
+          getRegisteredProviders(locale),
+          getProviderSettings(locale),
+          getEnvironmentDiagnostics(locale).catch(() => null)
+        ]);
 
-        const diagnostics = await getEnvironmentDiagnostics(locale).catch(() => null);
+        if (isCancelled) {
+          return;
+        }
+
+        setProviders(registered);
+        setProviderSettings(settings);
+
         if (diagnostics) {
           setEnvironmentDiagnostics(diagnostics);
         }
@@ -246,17 +413,29 @@ export default function App() {
 
         if (defaultProvider) {
           const result = await refreshProvider(defaultProvider, locale);
+          if (isCancelled) {
+            return;
+          }
+
           setSnapshot(result);
           setNow(Date.now());
         } else {
           setSnapshot(null);
         }
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : text.initFailed);
+        if (!isCancelled) {
+          setError(loadError instanceof Error ? loadError.message : text.initFailed);
+        }
       } finally {
-        setInitialized(true);
+        if (!isCancelled) {
+          setInitialized(true);
+        }
       }
     })();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [locale]);
 
   useEffect(() => {
@@ -268,7 +447,7 @@ export default function App() {
       return;
     }
 
-    handleRefresh(selectedProvider, locale);
+    void handleRefresh(selectedProvider, locale);
   }, [initialized, locale, selectedProvider, snapshot?.provider.id]);
 
   useEffect(() => {
@@ -291,7 +470,14 @@ export default function App() {
   const activeProvider =
     providers.find((provider) => provider.id === selectedProvider) ?? null;
   const selectedSnapshot = getSelectedSnapshot(snapshot, selectedProvider);
-  const statusTone = getStatusTone(selectedSnapshot?.provider.status ?? activeProvider?.status);
+  const activeProviderSetup = getActiveProviderSettings(
+    providerSettings,
+    selectedProvider
+  );
+  const selectedWarnings = selectedSnapshot?.warnings ?? [];
+  const statusTone = getStatusTone(
+    selectedSnapshot?.provider.status ?? activeProvider?.status
+  );
   const environmentWarnings = environmentDiagnostics?.warnings ?? [];
   const rawMeta = selectedSnapshot?.rawMeta
     ? JSON.stringify(selectedSnapshot.rawMeta, null, 2)
@@ -301,6 +487,17 @@ export default function App() {
     selectedProvider,
     selectedSnapshot
   );
+  const isEditingSelectedProvider = editingProviderId === selectedProvider;
+  const showProviderSetup = isSetupProvider(selectedProvider);
+  const showSetupForm =
+    showProviderSetup &&
+    (isEditingSelectedProvider || !activeProviderSetup?.configured);
+
+  const startEditingSelectedProvider = () => {
+    const currentSettings = getActiveProviderSettings(providerSettings, selectedProvider);
+    hydrateEditableValues(selectedProvider, currentSettings);
+    setEditingProviderId(selectedProvider);
+  };
 
   return (
     <main className="app-shell">
@@ -323,6 +520,9 @@ export default function App() {
                 }`}
                 onClick={() => {
                   setError(null);
+                  setProviderFormError(null);
+                  setEditingProviderId(null);
+                  resetProviderForm();
                   setSelectedProvider(provider.id);
                 }}
                 type="button"
@@ -351,11 +551,11 @@ export default function App() {
             <div className="topbar__actions">
               <button
                 className="primary-button"
-                disabled={!selectedProvider || isPending || !initialized}
-                onClick={() => handleRefresh(selectedProvider, locale)}
+                disabled={!selectedProvider || isRefreshing || !initialized}
+                onClick={() => void handleRefresh(selectedProvider, locale)}
                 type="button"
               >
-                {isPending ? text.refreshing : text.refresh}
+                {isRefreshing ? text.refreshing : text.refresh}
               </button>
               <button
                 className="secondary-button"
@@ -387,6 +587,12 @@ export default function App() {
 
       {viewMode === "dashboard" ? (
         <section className="dashboard-view">
+          {selectedWarnings.map((warning) => (
+            <section key={warning} className="banner banner--warning">
+              {warning}
+            </section>
+          ))}
+
           <section className="summary-grid">
             <article className="info-card">
               <div className="info-card__label">{text.provider}</div>
@@ -427,11 +633,165 @@ export default function App() {
               <div className="metric-card__value">
                 {formatLocalizedDateTime(locale, selectedSnapshot?.quota?.resetAt)}
               </div>
-              <p className="metric-card__countdown">
-                {formatLocalizedCountdown(locale, selectedSnapshot?.quota?.resetAt, now)}
-              </p>
+              {selectedSnapshot?.quota?.resetAt ? (
+                <p className="metric-card__countdown">
+                  {formatLocalizedCountdown(locale, selectedSnapshot?.quota?.resetAt, now)}
+                </p>
+              ) : null}
             </article>
           </section>
+
+          {showProviderSetup ? (
+            <article className="detail-panel setup-panel">
+              <div className="detail-panel__header">
+                <div>
+                  <div className="detail-panel__title">{text.providerSetup}</div>
+                  <div className="detail-panel__headline">
+                    {activeProvider?.name ?? text.unavailable}
+                  </div>
+                </div>
+                <span
+                  className={`status-pill status-pill--${
+                    activeProviderSetup?.configured ? "ready" : "muted"
+                  }`}
+                >
+                  {activeProviderSetup?.configured ? text.configured : text.notConfigured}
+                </span>
+              </div>
+
+              {providerFormError ? (
+                <section className="banner banner--error setup-panel__banner">
+                  {providerFormError}
+                </section>
+              ) : null}
+
+              {showSetupForm ? (
+                <div className="setup-form">
+                  {selectedProvider === "custom-provider" ? (
+                    <>
+                      <label className="setup-form__field">
+                        <span>{text.displayName}</span>
+                        <input
+                          className="setup-form__input"
+                          onChange={(event) => setCustomDisplayName(event.target.value)}
+                          placeholder={text.displayName}
+                          type="text"
+                          value={customDisplayName}
+                        />
+                      </label>
+
+                      <label className="setup-form__field">
+                        <span>{text.baseUrl}</span>
+                        <input
+                          className="setup-form__input"
+                          onChange={(event) => setCustomBaseUrl(event.target.value)}
+                          placeholder="https://api.openai.com/v1"
+                          type="url"
+                          value={customBaseUrl}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
+                  <label className="setup-form__field">
+                    <span>{text.apiKey}</span>
+                    <input
+                      className="setup-form__input"
+                      onChange={(event) =>
+                        selectedProvider === "openrouter"
+                          ? setOpenrouterApiKey(event.target.value)
+                          : setCustomApiKey(event.target.value)
+                      }
+                      placeholder={text.apiKey}
+                      type="password"
+                      value={
+                        selectedProvider === "openrouter"
+                          ? openrouterApiKey
+                          : customApiKey
+                      }
+                    />
+                  </label>
+
+                  {selectedProvider === "custom-provider" && isEditingSelectedProvider ? (
+                    <p className="setup-panel__hint">{text.keepExistingApiKeyHint}</p>
+                  ) : null}
+
+                  <div className="setup-panel__actions">
+                    <button
+                      className="primary-button"
+                      disabled={isSavingSettings}
+                      onClick={() => void handleSaveSettings(selectedProvider)}
+                      type="button"
+                    >
+                      {isSavingSettings ? text.saving : text.save}
+                    </button>
+                    {activeProviderSetup?.configured ? (
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          setEditingProviderId(null);
+                          setProviderFormError(null);
+                          resetProviderForm(selectedProvider);
+                        }}
+                        type="button"
+                      >
+                        {text.cancel}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <dl className="detail-list">
+                    {selectedProvider === "custom-provider" ? (
+                      <div>
+                        <dt>{text.displayName}</dt>
+                        <dd>{activeProviderSetup?.displayName ?? text.unavailable}</dd>
+                      </div>
+                    ) : null}
+                    {selectedProvider === "custom-provider" ? (
+                      <div>
+                        <dt>{text.baseUrl}</dt>
+                        <dd>{activeProviderSetup?.baseUrl ?? text.unavailable}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>{text.keyMasked}</dt>
+                      <dd>{activeProviderSetup?.keyMask ?? text.unavailable}</dd>
+                    </div>
+                    <div>
+                      <dt>{text.configuredSource}</dt>
+                      <dd>{activeProviderSetup?.source ?? text.unavailable}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="setup-panel__actions">
+                    <button
+                      className="secondary-button"
+                      onClick={startEditingSelectedProvider}
+                      type="button"
+                    >
+                      {text.edit}
+                    </button>
+                    {activeProviderSetup?.hasLocalConfig ? (
+                      <button
+                        className="secondary-button"
+                        disabled={isClearingSettings}
+                        onClick={() => void handleClearSettings(selectedProvider)}
+                        type="button"
+                      >
+                        {isClearingSettings ? text.refreshing : text.clearLocalConfig}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {activeProviderSetup?.hasLocalConfig ? (
+                    <p className="setup-panel__hint">{text.localConfigOnlyAction}</p>
+                  ) : null}
+                </>
+              )}
+            </article>
+          ) : null}
         </section>
       ) : (
         <section className="details-view">
@@ -531,6 +891,51 @@ export default function App() {
               <div>
                 <dt>{text.copilotSessionRoot}</dt>
                 <dd>{environmentDiagnostics?.copilot.sessionRoot ?? text.unavailable}</dd>
+              </div>
+              <div>
+                <dt>{text.openrouterApiKey}</dt>
+                <dd>
+                  {formatPresence(
+                    locale,
+                    environmentDiagnostics?.apiPlatforms.openrouter.configured ?? false
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>{text.configuredSource}</dt>
+                <dd>
+                  {environmentDiagnostics?.apiPlatforms.openrouter.source ?? text.unavailable}
+                </dd>
+              </div>
+              <div>
+                <dt>{text.customProviderApiKey}</dt>
+                <dd>
+                  {formatPresence(
+                    locale,
+                    environmentDiagnostics?.apiPlatforms.customProvider.configured ?? false
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>{text.customProviderDisplayName}</dt>
+                <dd>
+                  {environmentDiagnostics?.apiPlatforms.customProvider.displayName ??
+                    text.unavailable}
+                </dd>
+              </div>
+              <div>
+                <dt>{text.customProviderBaseUrl}</dt>
+                <dd>
+                  {environmentDiagnostics?.apiPlatforms.customProvider.baseUrl ??
+                    text.unavailable}
+                </dd>
+              </div>
+              <div>
+                <dt>{text.configuredSource}</dt>
+                <dd>
+                  {environmentDiagnostics?.apiPlatforms.customProvider.source ??
+                    text.unavailable}
+                </dd>
               </div>
             </dl>
           </article>

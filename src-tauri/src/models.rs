@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize)]
@@ -109,5 +109,32 @@ pub struct EnvironmentDiagnostics {
     pub webview2: WebView2Status,
     pub codex: CodexEnvironmentStatus,
     pub copilot: CopilotEnvironmentStatus,
+    pub api_platforms: ApiPlatformsEnvironmentStatus,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyStatus {
+    pub configured: bool,
+    pub source: Option<String>,
+    pub key_mask: Option<String>,
+    pub display_name: Option<String>,
+    pub base_url: Option<String>,
+    pub has_local_config: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiPlatformsEnvironmentStatus {
+    pub openrouter: ApiKeyStatus,
+    pub custom_provider: ApiKeyStatus,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSettingsInput {
+    pub api_key: Option<String>,
+    pub display_name: Option<String>,
+    pub base_url: Option<String>,
 }

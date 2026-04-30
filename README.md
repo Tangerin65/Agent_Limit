@@ -17,6 +17,8 @@
 
 - `Codex`
 - `GitHub Copilot`
+- `OpenRouter`
+- `Custom Provider`（OpenAI-compatible）
 
 
 
@@ -27,7 +29,10 @@
 - 默认根据系统语言决定界面语言，之后记住用户选择
 - 支持手动刷新当前 Provider 数据与环境诊断
 - 支持 `Dashboard / Details` 双视图
+- `OpenRouter` 支持在主界面直接填写 API Key，无需再手动绑定命令行环境变量
+- `Custom Provider` 支持在主界面图形化填写 `Display Name / Base URL / API Key`
 - 支持环境诊断，检测 `WebView2`、`Codex`、`GitHub Copilot` 本地状态
+- 支持环境诊断，检测 `WebView2`、`Codex`、`GitHub Copilot` 以及 API 平台 Provider 的配置状态
 - 后端使用统一 Provider 数据模型，便于后续扩展更多额度来源
 
 ## 3.下载使用方式
@@ -50,6 +55,15 @@
 ```bash
 npm install
 npm run tauri dev
+```
+
+如果需要体验 API 平台 Provider，现在推荐直接在应用主界面内填写配置。
+
+兼容模式下，仍可在当前终端设置环境变量（Windows PowerShell）：
+
+```powershell
+$env:OPENROUTER_API_KEY="your-openrouter-key"
+$env:OPENAI_API_KEY="your-openai-key"
 ```
 
 前端构建：
@@ -102,6 +116,28 @@ npm run build:root-exe
 - 如果存在有限的 premium requests 配额，首页会突出显示 `剩余百分比`
 - 剩余调用次数、已用量与总量会作为次级信息展示
 
+#### OpenRouter
+
+- 优先读取应用本地配置文件中的 `OpenRouter API Key`
+- 若本地配置不存在，则回退读取 `OPENROUTER_API_KEY` 环境变量
+- 调用 `https://openrouter.ai/api/v1/credits` 刷新 Credit
+- 未配置时会在 OpenRouter 主界面直接显示填写表单
+- 首页优先展示 `剩余 Credit`，并在可用时展示 `已用/总量` 与百分比
+
+#### Custom Provider
+
+- 面向 `OpenAI-compatible` 服务，而非只绑定官方 OpenAI
+- 优先读取应用本地配置文件中的 `Display Name / Base URL / API Key`
+- 若本地配置不存在但存在 `OPENAI_API_KEY`，则回退为官方 OpenAI 默认校验模式
+- 当前通过 `${baseUrl}/models` 做可用性校验
+- 因通用模式下暂无稳定单一余额端点，当前会显示 `degraded + quota unavailable` 并给出说明
+
+#### API 平台配置
+
+- 本地配置文件路径：`%LocalAppData%\Agent Limit\provider-settings.json`
+- 配置优先级：`本地配置 > 环境变量回退`
+- API Key 缺失提示只会显示在对应 Provider 自己的主界面中，不会作为全局顶部条幅
+
 #### 语言实现
 
 - 前端维护本地 locale 状态，只支持 `en` 与 `zh-CN`
@@ -127,9 +163,13 @@ src-tauri/               Tauri v2 / Rust 后端
     locale.rs            后端 locale 解析
     models.rs            统一数据模型
     environment.rs       本地环境诊断
+    provider_settings.rs API 平台 Provider 本地配置存储
     providers/
+      api_platform/        API 平台公共逻辑（API Key、HTTP、脱敏）
       codex.rs           Codex 适配器
       github_copilot.rs  GitHub Copilot 适配器
+      openrouter.rs      OpenRouter 适配器
+      custom_provider.rs 自定义 OpenAI-compatible Provider 适配器
       mod.rs             Provider 注册表
 
 dist/                    前端构建产物
@@ -151,7 +191,6 @@ dist/                    前端构建产物
 
 ## 7.后续更新计划
 
-- 接入 OpenRouter 真实额度查询
 - 增加托盘模式
 - 增加自动刷新
 - 增加历史记录与变化趋势
@@ -171,6 +210,8 @@ Supported providers:
 
 - `Codex`
 - `GitHub Copilot`
+- `OpenRouter`
+- `Custom Provider` (OpenAI-compatible)
 
 This version adds two important UX improvements:
 
@@ -184,7 +225,9 @@ This version adds two important UX improvements:
 - Default language derived from the system locale, then persisted after the user changes it
 - Manual refresh for the current provider and environment diagnostics
 - `Dashboard / Details` dual-view UI
-- Environment diagnostics for local `WebView2`, `Codex`, and `GitHub Copilot` state
+- `OpenRouter` can now be configured directly from its dashboard without a command-line setup step
+- `Custom Provider` includes an in-app graphical form for `Display Name / Base URL / API Key`
+- Environment diagnostics for local `WebView2`, `Codex`, `GitHub Copilot`, and API key configuration state
 - Unified backend provider model for future expansion
 
 ## Download & Usage
@@ -207,6 +250,15 @@ Run in development:
 ```bash
 npm install
 npm run tauri dev
+```
+
+To test API-platform providers, the recommended path is now to enter their settings directly in the app UI.
+
+For compatibility, you can still set environment variables in the terminal first (Windows PowerShell):
+
+```powershell
+$env:OPENROUTER_API_KEY="your-openrouter-key"
+$env:OPENAI_API_KEY="your-openai-key"
 ```
 
 Build the frontend:
@@ -259,6 +311,28 @@ Where:
 - when a finite premium-requests quota exists, the dashboard highlights `remaining percentage`
 - remaining requests, used, and total values are shown as secondary detail
 
+#### OpenRouter
+
+- Reads the configured OpenRouter API key from app-local settings first
+- Falls back to `OPENROUTER_API_KEY` when no local config is stored
+- Fetches credit data from `https://openrouter.ai/api/v1/credits`
+- Shows an inline setup form on the OpenRouter dashboard when the key is missing
+- Dashboard prioritizes `remaining credits` with used/total and percentage metadata when available
+
+#### Custom Provider
+
+- Targets `OpenAI-compatible` services instead of only the official OpenAI API
+- Reads `Display Name / Base URL / API Key` from app-local settings first
+- Falls back to the official OpenAI API only when `OPENAI_API_KEY` exists and no local custom-provider config is stored
+- Validates access via `${baseUrl}/models`
+- Currently reports `degraded + quota unavailable` because the generic integration does not expose a stable balance endpoint
+
+#### API Platform Configuration
+
+- Local settings file: `%LocalAppData%\Agent Limit\provider-settings.json`
+- Precedence: `local config > environment variable fallback`
+- Missing API-key warnings are shown only inside the matching provider UI instead of as global top-of-page banners
+
 #### Language Support
 
 - The frontend keeps a local locale state and currently supports only `en` and `zh-CN`
@@ -284,9 +358,13 @@ src-tauri/               Tauri v2 / Rust backend
     locale.rs            Backend locale parsing
     models.rs            Shared data model
     environment.rs       Local environment diagnostics
+    provider_settings.rs Local settings storage for API-platform providers
     providers/
+      api_platform/        Shared helpers for API-key providers
       codex.rs           Codex adapter
       github_copilot.rs  GitHub Copilot adapter
+      openrouter.rs      OpenRouter adapter
+      custom_provider.rs Custom OpenAI-compatible provider adapter
       mod.rs             Provider registry
 
 dist/                    Frontend build output
@@ -308,7 +386,6 @@ dist/                    Frontend build output
 
 ## Roadmap
 
-- Add real OpenRouter quota querying
 - Add tray mode
 - Add auto refresh
 - Add history and trend views

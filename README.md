@@ -11,7 +11,14 @@
 
 ## 1.项目简介
 
-`Agent Limit` 是一个面向 Windows 的本地桌面工具，用来查看当前电脑上已登录 AI Agent 账号的额度状态。
+你可能正在经历这些问题：
+
+- 明明开了 Plus/Pro 或买了 API Credit，却不知道“现在还剩多少、何时重置”
+- Codex、Copilot、OpenRouter、自定义平台分散在不同客户端，来回切换很耗时间
+- 到了额度边缘才发现快用完，影响连续开发节奏
+
+`Agent Limit` 就是为这个场景做的：一个面向 Windows 的本地桌面面板，把你这台电脑上**已登录**的 AI Agent 额度状态统一拉平展示。  
+你可以在一个界面里快速看到账号、套餐、剩余配额、重置时间和倒计时，减少排查成本，降低“额度焦虑”。
 
 当前已支持：
 
@@ -204,7 +211,14 @@ dist/                    前端构建产物
 
 ## Project Summary
 
-`Agent Limit` is a local Windows desktop app for checking quota status of AI agent accounts currently signed in on your PC.
+If you use multiple AI coding tools every day, you probably hit the same friction:
+
+- You pay for plans or credits, but still can’t quickly tell what’s left right now
+- Quota info is scattered across different apps and dashboards
+- You only notice limits when you’re already close to cutoff
+
+`Agent Limit` is a local Windows desktop app built to solve exactly that.  
+It gives you one unified view of the AI agent accounts already signed in on your PC, including account, plan, remaining quota, reset time, and countdown, so you can keep coding without quota guesswork.
 
 Supported providers:
 

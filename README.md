@@ -12,35 +12,29 @@
 ## 1.项目简介
 
 你可能正在经历这些问题：
+- 明明开通了 Coding Plan 或购买了 API Credit，却不知道“现在还剩多少额度、何时能够重置”
+- Codex、Copilot、OpenRouter、自定义平台分散在不同网页客户端，来回切换费时费力
+- 到了额度边缘才发现即将耗尽，影响连续开发节奏
 
-- 明明开了 Plus/Pro 或买了 API Credit，却不知道“现在还剩多少、何时重置”
-- Codex、Copilot、OpenRouter、自定义平台分散在不同客户端，来回切换很耗时间
-- 到了额度边缘才发现快用完，影响连续开发节奏
-
-`Agent Limit` 就是为这个场景做的：一个面向 Windows 的本地桌面面板，把你这台电脑上**已登录**的 AI Agent 额度状态统一拉平展示。  
-你可以在一个界面里快速看到账号、套餐、剩余配额、重置时间和倒计时，减少排查成本，降低“额度焦虑”。
+`Agent Limit` 就是为这个场景而生：一个面向 Windows 的本地桌面面板，把本地**已登录**的 AI Agent 额度状态统一拉平展示。  
+可以在同一界面里快速看到账号、套餐、剩余配额、重置时间和倒计时，减少排查成本，降低额度焦虑。
 
 当前已支持：
 
 - `Codex`
 - `GitHub Copilot`
 - `OpenRouter`
-- `Custom Provider`（OpenAI-compatible）
+- `自定义API供应商(OpenAI格式)`
 
 
 
 ## 2.功能介绍
 
 - 统一展示当前账号、套餐、配额、重置时间与倒计时
-- 支持在顶部设置中切换 `English / 简体中文`
-- 默认根据系统语言决定界面语言，之后记住用户选择
-- 支持手动刷新当前 Provider 数据与环境诊断
-- 支持 `Dashboard / Details` 双视图
+- 多语言支持,默认根据系统语言决定界面语言，之后记住用户选择
 - `OpenRouter` 支持在主界面直接填写 API Key，无需再手动绑定命令行环境变量
 - `Custom Provider` 支持在主界面图形化填写 `Display Name / Base URL / API Key`
 - 支持环境诊断，检测 `WebView2`、`Codex`、`GitHub Copilot` 本地状态
-- 支持环境诊断，检测 `WebView2`、`Codex`、`GitHub Copilot` 以及 API 平台 Provider 的配置状态
-- 后端使用统一 Provider 数据模型，便于后续扩展更多额度来源
 
 ## 3.下载使用方式
 
@@ -133,21 +127,20 @@ npm run build:root-exe
 
 #### Custom Provider
 
-- 面向 `OpenAI-compatible` 服务，而非只绑定官方 OpenAI
+- 面向 `OpenAI-compatible` 服务
 - 优先读取应用本地配置文件中的 `Display Name / Base URL / API Key`
 - 若本地配置不存在但存在 `OPENAI_API_KEY`，则回退为官方 OpenAI 默认校验模式
 - 当前通过 `${baseUrl}/models` 做可用性校验
-- 因通用模式下暂无稳定单一余额端点，当前会显示 `degraded + quota unavailable` 并给出说明
+- 因通用模式下暂无稳定单一余额端点，会显示 `degraded + quota unavailable` 并给出说明
 
 #### API 平台配置
 
 - 本地配置文件路径：`%LocalAppData%\Agent Limit\provider-settings.json`
 - 配置优先级：`本地配置 > 环境变量回退`
-- API Key 缺失提示只会显示在对应 Provider 自己的主界面中，不会作为全局顶部条幅
 
 #### 语言实现
 
-- 前端维护本地 locale 状态，只支持 `en` 与 `zh-CN`
+- 前端维护本地 locale 状态
 - 首次启动根据 `navigator.language` 自动选择默认语言
 - 用户手动切换后，语言偏好会持久化到本地存储
 - 前端调用 Tauri 命令时会传入 locale，后端告警和 Provider 文案也会同步切换

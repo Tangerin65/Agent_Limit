@@ -32,8 +32,16 @@ type TranslationSet = {
   subtitle: string;
   providerSwitcher: string;
   language: string;
+  dashboard: string;
   languageShort: string;
   languageSystem: string;
+  settings: string;
+  appearance: string;
+  theme: string;
+  themeSystem: string;
+  themeDark: string;
+  themeLight: string;
+  themeCurrent: string;
   refresh: string;
   refreshing: string;
   details: string;
@@ -137,6 +145,7 @@ type TranslationSet = {
   daysSuffix: string;
   remainingInline: string;
   usageInline: string;
+  customProviderRefreshSuccess: string;
 };
 
 const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
@@ -144,8 +153,16 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     subtitle: "本机 Agent 配额监视器",
     providerSwitcher: "Provider 切换",
     language: "语言",
+    dashboard: "面板",
     languageShort: "中 / EN",
     languageSystem: "跟随系统",
+    settings: "设置",
+    appearance: "外观与偏好",
+    theme: "主题",
+    themeSystem: "跟随系统",
+    themeDark: "暗色",
+    themeLight: "亮色",
+    themeCurrent: "当前主题：",
     refresh: "刷新",
     refreshing: "刷新中...",
     details: "详情",
@@ -248,14 +265,23 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     secondsSuffix: "秒",
     daysSuffix: "天",
     remainingInline: "剩余 {value}",
-    usageInline: "已用 {used} / {total}"
+    usageInline: "已用 {used} / {total}",
+    customProviderRefreshSuccess: "{vendor} 余额接口刷新成功。"
   },
   en: {
     subtitle: "Local Agent Quota Monitor",
     providerSwitcher: "Provider Switcher",
     language: "Language",
+    dashboard: "Dashboard",
     languageShort: "EN / 中",
     languageSystem: "System Default",
+    settings: "Settings",
+    appearance: "Appearance & Preferences",
+    theme: "Theme",
+    themeSystem: "System",
+    themeDark: "Dark",
+    themeLight: "Light",
+    themeCurrent: "Current theme:",
     refresh: "Refresh",
     refreshing: "Refreshing...",
     details: "Details",
@@ -358,7 +384,8 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     secondsSuffix: "s",
     daysSuffix: "d",
     remainingInline: "{value} remaining",
-    usageInline: "{used} used / {total}"
+    usageInline: "{used} used / {total}",
+    customProviderRefreshSuccess: "{vendor} balance endpoint refreshed successfully."
   }
 };
 

@@ -31,9 +31,13 @@
 ## 2.功能介绍
 
 - 统一展示当前账号、套餐、配额、重置时间与倒计时
+- 新增 `Settings` 独立页面，集中管理语言与主题
 - 多语言支持,默认根据系统语言决定界面语言，之后记住用户选择
+- 支持 `System / Dark / Light` 三种主题模式（可跟随系统）
 - `OpenRouter` 支持在主界面直接填写 API Key，无需再手动绑定命令行环境变量
 - `Custom Provider` 支持在主界面图形化填写 `Display Name / Base URL / API Key`
+- Provider 选择栏支持品牌 Logo 展示，Custom Provider 自动匹配 `Kimi / DeepSeek / GLM` Logo
+- Remaining 主卡片新增圆环进度，可同时显示剩余额度与百分比
 - 支持环境诊断，检测 `WebView2`、`Codex`、`GitHub Copilot` 本地状态
 
 ## 3.下载使用方式
@@ -85,6 +89,28 @@ npm run build:installer
 npm run build:root-exe
 ```
 
+发布与清理（`v0.1.2` 起推荐）：
+
+```bash
+cd src-tauri && cargo test
+cd ..
+npm run build
+npm run build:root-exe
+```
+
+确认 `Agent Limit.exe` 可启动后，可发布到 GitHub Release：
+
+```bash
+gh release create v0.1.2 "Agent Limit.exe" "Agent Limit Setup.exe" --title "v0.1.2" --notes "See README for highlights."
+```
+
+发布完成后如需深度清理本地工作区：
+
+```powershell
+Remove-Item -Recurse -Force .\dist, .\src-tauri\target, .\node_modules
+Remove-Item -Force ".\Agent Limit.exe", ".\Agent Limit Setup.exe"
+```
+
 ## 4.实现方式
 
 #### Codex
@@ -130,8 +156,8 @@ npm run build:root-exe
 - 面向 `OpenAI-compatible` 服务
 - 优先读取应用本地配置文件中的 `Display Name / Base URL / API Key`
 - 若本地配置不存在但存在 `OPENAI_API_KEY`，则回退为官方 OpenAI 默认校验模式
-- 当前通过 `${baseUrl}/models` 做可用性校验
-- 因通用模式下暂无稳定单一余额端点，会显示 `degraded + quota unavailable` 并给出说明
+- 会根据 `Base URL` 自动识别 `DeepSeek / Kimi / GLM` 并调用对应余额端点
+- 识别成功时可返回可用余额；未知厂商时仍会回退到通用校验模式
 
 #### API 平台配置
 
@@ -220,20 +246,26 @@ Supported providers:
 - `OpenRouter`
 - `Custom Provider` (OpenAI-compatible)
 
-This version adds two important UX improvements:
+This version adds a full UI upgrade:
 
-- Full `English / Simplified Chinese` support, with the default language chosen from the system language on first launch
-- A redesigned `GitHub Copilot` dashboard where `remaining percentage` is the primary hero metric and remaining requests are shown as secondary detail
+- Dedicated settings view for language and theme selection
+- `System / Dark / Light` theme support
+- Provider logo display with custom vendor auto-matching
+- Remaining quota progress-ring visualization
 
 ## Features
 
 - Unified view of account, plan, quota, reset time, and countdown
+- Dedicated `Settings` view for language and appearance controls
 - Top-level language switcher for `English / 简体中文`
+- `System / Dark / Light` theme modes with system-follow support
 - Default language derived from the system locale, then persisted after the user changes it
 - Manual refresh for the current provider and environment diagnostics
 - `Dashboard / Details` dual-view UI
 - `OpenRouter` can now be configured directly from its dashboard without a command-line setup step
 - `Custom Provider` includes an in-app graphical form for `Display Name / Base URL / API Key`
+- Provider tabs now include logos; custom provider auto-maps `Kimi / DeepSeek / GLM` logos
+- Remaining card now includes a progress ring for quick quota visibility
 - Environment diagnostics for local `WebView2`, `Codex`, `GitHub Copilot`, and API key configuration state
 - Unified backend provider model for future expansion
 
@@ -286,6 +318,28 @@ Export the root-level executable and installer:
 npm run build:root-exe
 ```
 
+Release and cleanup flow (recommended since `v0.1.2`):
+
+```bash
+cd src-tauri && cargo test
+cd ..
+npm run build
+npm run build:root-exe
+```
+
+After confirming `Agent Limit.exe` launches correctly, publish artifacts:
+
+```bash
+gh release create v0.1.2 "Agent Limit.exe" "Agent Limit Setup.exe" --title "v0.1.2" --notes "See README for highlights."
+```
+
+Optional deep cleanup after publishing:
+
+```powershell
+Remove-Item -Recurse -Force .\dist, .\src-tauri\target, .\node_modules
+Remove-Item -Force ".\Agent Limit.exe", ".\Agent Limit Setup.exe"
+```
+
 ## How It Works
 
 #### Codex
@@ -331,8 +385,8 @@ Where:
 - Targets `OpenAI-compatible` services instead of only the official OpenAI API
 - Reads `Display Name / Base URL / API Key` from app-local settings first
 - Falls back to the official OpenAI API only when `OPENAI_API_KEY` exists and no local custom-provider config is stored
-- Validates access via `${baseUrl}/models`
-- Currently reports `degraded + quota unavailable` because the generic integration does not expose a stable balance endpoint
+- Auto-detects `DeepSeek / Kimi / GLM` from base URL and queries known vendor balance endpoints
+- Falls back to generic validation mode when the vendor is unknown
 
 #### API Platform Configuration
 

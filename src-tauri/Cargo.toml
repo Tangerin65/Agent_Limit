@@ -1,6 +1,6 @@
 [package]
 name = "agent-limit"
-version = "0.1.1"
+version = "0.1.2"
 description = "Desktop quota viewer for Codex and other agent providers"
 authors = ["OpenAI Codex"]
 edition = "2021"
@@ -26,3 +26,4 @@ walkdir = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+

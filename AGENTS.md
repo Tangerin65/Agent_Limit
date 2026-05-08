@@ -63,7 +63,7 @@ scripts/
   export-root-exe.ps1        将构建产物复制到仓库根目录
 
 dist/                        前端构建产物
-releases/                    发布相关产物目录（当前未跟踪）
+releases/                    发布相关产物目录（可按发布流程创建）
 ```
 
 ## 4. 运行与构建
@@ -92,6 +92,8 @@ npm run build:root-exe
 - 当前最小校验链路为：`cargo test` -> `npm run build`
 - 若校验通过，默认继续执行 `npm run build:root-exe`
 - 最终应保证项目根目录中的 `Agent Limit.exe` 和安装包为最新产物
+- 发布到 GitHub 建议使用：`git push` + `gh release create <tag> Agent Limit.exe Agent Limit Setup.exe`
+- 如果用户要求“深度清理”，可在发布后执行：清理 `dist/`、`src-tauri/target/`、`node_modules/` 以及根目录导出 exe
 
 ## 5. 前后端交互模型
 
@@ -120,8 +122,9 @@ npm run build:root-exe
 主界面集中在 [src/App.tsx](D:/Tangerin/Personal/Code/Agent_Limit/src/App.tsx)，它负责：
 
 - 管理当前语言、当前 Provider、当前快照、环境诊断、错误信息
+- 管理主题偏好（`system` / `dark` / `light`）与系统主题跟随
 - 首次加载 Provider 列表与默认 Provider 数据
-- 在 `dashboard` / `details` 之间切换
+- 在 `dashboard` / `details` / `settings` 之间切换
 - 每秒刷新倒计时显示
 - 根据 Provider 类型决定主展示指标
 
@@ -131,6 +134,9 @@ npm run build:root-exe
 - 语言只支持 `en` 和 `zh-CN`
 - 语言优先级：本地存储 > 系统语言
 - 语言存储 key：`agent-limit.locale`
+- 主题偏好存储 key：`agent-limit.theme-preference`
+- Provider 顶栏默认单行显示，并在按钮内显示 Provider Logo
+- Remaining 主卡片包含圆环进度，优先使用 `percentRemaining`，不足时回退 `remaining/total`
 - `GitHub Copilot` 在首页优先展示 `remaining percentage`
 - 其他 Provider 默认优先展示 `remaining`
 
@@ -255,6 +261,11 @@ Provider 抽象定义在 [src-tauri/src/providers/mod.rs](D:/Tangerin/Personal/C
 
 如果只改前端静态文本、不改 Rust 侧告警，最终界面会出现中英文混杂。
 
+主题相关新增约束：
+
+- 新增主题模式或设置页文案时，同步更新 `en` / `zh-CN`
+- 深浅色变量统一维护在 [src/styles.css](D:/Tangerin/Personal/Code/Agent_Limit/src/styles.css) 的 `:root[data-theme=...]` 中
+
 ## 12. 修改建议
 
 后续 AI 修改本项目时，优先遵守以下原则：
@@ -274,6 +285,7 @@ Provider 抽象定义在 [src-tauri/src/providers/mod.rs](D:/Tangerin/Personal/C
 如果要做不同类型的需求，建议优先查看这些文件：
 
 - 改首页展示或详情页布局： [src/App.tsx](D:/Tangerin/Personal/Code/Agent_Limit/src/App.tsx)
+- 改设置页、主题切换、Provider Logo、Remaining 圆环： [src/App.tsx](D:/Tangerin/Personal/Code/Agent_Limit/src/App.tsx) 和 [src/styles.css](D:/Tangerin/Personal/Code/Agent_Limit/src/styles.css)
 - 改文案或时间/数值格式： [src/i18n.ts](D:/Tangerin/Personal/Code/Agent_Limit/src/i18n.ts)
 - 改前后端调用： [src/lib/api.ts](D:/Tangerin/Personal/Code/Agent_Limit/src/lib/api.ts)
 - 改共享字段： [src/types/provider.ts](D:/Tangerin/Personal/Code/Agent_Limit/src/types/provider.ts) 和 [src-tauri/src/models.rs](D:/Tangerin/Personal/Code/Agent_Limit/src-tauri/src/models.rs)
@@ -289,12 +301,7 @@ Provider 抽象定义在 [src-tauri/src/providers/mod.rs](D:/Tangerin/Personal/C
 
 ## 14. 当前仓库状态提醒
 
-在编写本文档时，工作区存在非本文档引入的现有变化：
-
-- `src-tauri/Cargo.toml` 已修改
-- `releases/` 为未跟踪目录
-
-后续 AI 在提交代码前，应先确认这些改动是否属于用户已有工作，避免误覆盖或误清理。
+请在每次提交前执行 `git status`，确认是否存在与本次任务无关的修改，避免误覆盖或误清理用户已有工作。
 
 ## 15. 建议补充但目前缺失的内容
 

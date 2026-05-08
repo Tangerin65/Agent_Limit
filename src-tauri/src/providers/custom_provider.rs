@@ -305,7 +305,7 @@ fn refresh_supported_vendor(
                                     "厂商余额接口刷新成功。",
                                 ),
                                 quota: parsed.quota,
-                                warnings: vec![parsed.warning],
+                                warnings: vec![],
                                 balance_endpoint: Some(parsed.balance_endpoint),
                                 response_shape_hint: Some(parsed.response_shape_hint),
                                 endpoint_attempts: attempts,

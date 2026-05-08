@@ -12,6 +12,13 @@ import {
   writeStoredLocale,
   type AppLocale
 } from "./i18n";
+import codexLogo from "./assets/provider-codex.svg";
+import copilotLogo from "./assets/provider-copilot.svg";
+import openrouterLogo from "./assets/provider-openrouter.svg";
+import customDefaultLogo from "./assets/provider-custom.svg";
+import customDeepseekLogo from "./assets/provider-deepseek.svg";
+import customKimiLogo from "./assets/provider-kimi.svg";
+import customGlmLogo from "./assets/provider-glm.svg";
 import {
   clearProviderSettings,
   getEnvironmentDiagnostics,
@@ -30,6 +37,12 @@ import type {
 } from "./types/provider";
 
 const DEFAULT_PROVIDER = "codex";
+const THEME_PREFERENCE_STORAGE_KEY = "agent-limit.theme-preference";
+
+type ViewMode = "dashboard" | "details" | "settings";
+type ThemePreference = "system" | "dark" | "light";
+type ThemeMode = "dark" | "light";
+type CustomVendor = "deepseek" | "kimi" | "glm" | "unknown";
 
 function getSelectedSnapshot(
   snapshot: ProviderSnapshot | null,
@@ -245,10 +258,145 @@ function getProviderSettingsPayload(
   };
 }
 
+function readStoredThemePreference(): ThemePreference {
+  if (typeof localStorage === "undefined") {
+    return "system";
+  }
+
+  const value = localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
+  if (value === "system" || value === "dark" || value === "light") {
+    return value;
+  }
+  return "system";
+}
+
+function writeStoredThemePreference(preference: ThemePreference) {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+  localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, preference);
+}
+
+function detectSystemTheme(): ThemeMode {
+  if (typeof window === "undefined" || typeof window.matchMedia === "undefined") {
+    return "dark";
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value));
+}
+
+function deriveRemainingRingPercent(snapshot: ProviderSnapshot | null) {
+  const quota = snapshot?.quota;
+  if (!quota) {
+    return null;
+  }
+  if (typeof quota.percentRemaining === "number" && !Number.isNaN(quota.percentRemaining)) {
+    return clampPercent(quota.percentRemaining);
+  }
+
+  if (
+    typeof quota.remaining === "number" &&
+    !Number.isNaN(quota.remaining) &&
+    typeof quota.total === "number" &&
+    !Number.isNaN(quota.total) &&
+    quota.total > 0
+  ) {
+    return clampPercent((quota.remaining / quota.total) * 100);
+  }
+
+  return null;
+}
+
+function detectCustomVendor(
+  snapshot: ProviderSnapshot | null,
+  settings: ApiKeyStatus | null
+): CustomVendor {
+  const detectedVendor = snapshot?.rawMeta?.detectedVendor;
+  if (detectedVendor === "deepseek" || detectedVendor === "kimi" || detectedVendor === "glm") {
+    return detectedVendor;
+  }
+
+  const baseUrl = settings?.baseUrl?.toLowerCase() ?? "";
+  if (baseUrl.includes("deepseek")) {
+    return "deepseek";
+  }
+  if (baseUrl.includes("moonshot") || baseUrl.includes("kimi")) {
+    return "kimi";
+  }
+  if (baseUrl.includes("bigmodel") || baseUrl.includes("z.ai")) {
+    return "glm";
+  }
+
+  return "unknown";
+}
+
+function getProviderLogo(
+  providerId: string,
+  snapshot: ProviderSnapshot | null,
+  settings: ApiKeyStatus | null
+) {
+  if (providerId === "codex") {
+    return codexLogo;
+  }
+  if (providerId === "github-copilot") {
+    return copilotLogo;
+  }
+  if (providerId === "openrouter") {
+    return openrouterLogo;
+  }
+  if (providerId === "custom-provider") {
+    const vendor = detectCustomVendor(snapshot, settings);
+    if (vendor === "deepseek") {
+      return customDeepseekLogo;
+    }
+    if (vendor === "kimi") {
+      return customKimiLogo;
+    }
+    if (vendor === "glm") {
+      return customGlmLogo;
+    }
+    return customDefaultLogo;
+  }
+  return customDefaultLogo;
+}
+
+function getVendorDisplayName(vendor: CustomVendor) {
+  switch (vendor) {
+    case "deepseek":
+      return "DeepSeek";
+    case "kimi":
+      return "Kimi";
+    case "glm":
+      return "GLM";
+    default:
+      return "Custom Provider";
+  }
+}
+
+function buildCustomProviderSuccessBanner(
+  locale: AppLocale,
+  vendor: CustomVendor
+) {
+  const text = getTranslation(locale);
+  return text.customProviderRefreshSuccess.replace(
+    "{vendor}",
+    getVendorDisplayName(vendor)
+  );
+}
+
 export default function App() {
   const [locale, setLocale] = useState<AppLocale>(
     () => readStoredLocale() ?? detectSystemLocale()
   );
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    () => readStoredThemePreference()
+  );
+  const [systemTheme, setSystemTheme] = useState<ThemeMode>(() => detectSystemTheme());
   const [providers, setProviders] = useState<ProviderDescriptor[]>([]);
   const [selectedProvider, setSelectedProvider] = useState(DEFAULT_PROVIDER);
   const [snapshot, setSnapshot] = useState<ProviderSnapshot | null>(null);
@@ -257,9 +405,10 @@ export default function App() {
   const [environmentDiagnostics, setEnvironmentDiagnostics] =
     useState<EnvironmentDiagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [transientSuccess, setTransientSuccess] = useState<string | null>(null);
   const [providerFormError, setProviderFormError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [viewMode, setViewMode] = useState<"dashboard" | "details">("dashboard");
+  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [now, setNow] = useState(() => Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -271,6 +420,8 @@ export default function App() {
   const [customApiKey, setCustomApiKey] = useState("");
 
   const text = getTranslation(locale);
+  const resolvedTheme: ThemeMode =
+    themePreference === "system" ? systemTheme : themePreference;
 
   const resetProviderForm = (providerId?: string) => {
     if (!providerId || providerId === "openrouter") {
@@ -297,8 +448,12 @@ export default function App() {
     setCustomApiKey("");
   };
 
-  const handleRefresh = async (providerId: string, currentLocale: AppLocale) => {
+  const handleRefresh = async (
+    providerId: string,
+    currentLocale: AppLocale
+  ): Promise<ProviderSnapshot | null> => {
     setError(null);
+    setTransientSuccess(null);
     setIsRefreshing(true);
 
     try {
@@ -318,12 +473,14 @@ export default function App() {
         setProviderSettings(settings);
       }
       setNow(Date.now());
+      return result;
     } catch (refreshError) {
       setError(
         refreshError instanceof Error
           ? refreshError.message
           : text.providerRefreshFailed
       );
+      return null;
     } finally {
       setIsRefreshing(false);
     }
@@ -346,7 +503,12 @@ export default function App() {
       setProviderSettings(settings);
       setEditingProviderId(null);
       resetProviderForm(providerId);
-      await handleRefresh(providerId, locale);
+      const refreshed = await handleRefresh(providerId, locale);
+
+      if (providerId === "custom-provider" && refreshed?.quota?.status === "available") {
+        const vendor = detectCustomVendor(refreshed, settings.customProvider);
+        setTransientSuccess(buildCustomProviderSuccessBanner(locale, vendor));
+      }
     } catch (saveError) {
       setProviderFormError(
         saveError instanceof Error ? saveError.message : text.initFailed
@@ -379,6 +541,35 @@ export default function App() {
   useEffect(() => {
     writeStoredLocale(locale);
   }, [locale]);
+
+  useEffect(() => {
+    writeStoredThemePreference(themePreference);
+  }, [themePreference]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
+
+    setSystemTheme(media.matches ? "dark" : "light");
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handler);
+      return () => media.removeEventListener("change", handler);
+    }
+
+    media.addListener(handler);
+    return () => media.removeListener(handler);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", resolvedTheme);
+  }, [resolvedTheme]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -487,6 +678,17 @@ export default function App() {
     selectedProvider,
     selectedSnapshot
   );
+  const remainingRingPercent = deriveRemainingRingPercent(selectedSnapshot);
+  const ringRadius = 58;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringStrokeOffset =
+    remainingRingPercent === null
+      ? ringCircumference
+      : ringCircumference * (1 - remainingRingPercent / 100);
+  const ringPercentLabel =
+    remainingRingPercent === null
+      ? text.unavailable
+      : `${remainingRingPercent.toFixed(1)}%`;
   const isEditingSelectedProvider = editingProviderId === selectedProvider;
   const showProviderSetup = isSetupProvider(selectedProvider);
   const showSetupForm =
@@ -523,31 +725,29 @@ export default function App() {
                   setProviderFormError(null);
                   setEditingProviderId(null);
                   resetProviderForm();
+                  setTransientSuccess(null);
                   setSelectedProvider(provider.id);
                 }}
                 type="button"
               >
-                {provider.name}
+                <img
+                  alt=""
+                  aria-hidden
+                  className="provider-switch__logo"
+                  src={getProviderLogo(
+                    provider.id,
+                    provider.id === selectedProvider ? selectedSnapshot : null,
+                    provider.id === selectedProvider
+                      ? getActiveProviderSettings(providerSettings, provider.id)
+                      : null
+                  )}
+                />
+                <span className="provider-switch__label">{provider.name}</span>
               </button>
             ))}
           </div>
 
           <div className="topbar__utility-row">
-            <label className="language-select">
-              <span className="language-select__label">{text.language}</span>
-              <select
-                className="language-select__input"
-                value={locale}
-                onChange={(event) => {
-                  const nextLocale = event.target.value as AppLocale;
-                  setLocale(nextLocale);
-                }}
-              >
-                <option value="en">English</option>
-                <option value="zh-CN">简体中文</option>
-              </select>
-            </label>
-
             <div className="topbar__actions">
               <button
                 className="primary-button"
@@ -558,20 +758,40 @@ export default function App() {
                 {isRefreshing ? text.refreshing : text.refresh}
               </button>
               <button
-                className="secondary-button"
-                onClick={() =>
-                  setViewMode((current) =>
-                    current === "dashboard" ? "details" : "dashboard"
-                  )
-                }
+                className={`secondary-button ${
+                  viewMode === "dashboard" ? "secondary-button--active" : ""
+                }`}
+                onClick={() => setViewMode("dashboard")}
                 type="button"
               >
-                {viewMode === "dashboard" ? text.details : text.back}
+                {text.dashboard}
+              </button>
+              <button
+                className={`secondary-button ${
+                  viewMode === "details" ? "secondary-button--active" : ""
+                }`}
+                onClick={() => setViewMode("details")}
+                type="button"
+              >
+                {text.details}
+              </button>
+              <button
+                className={`secondary-button ${
+                  viewMode === "settings" ? "secondary-button--active" : ""
+                }`}
+                onClick={() => setViewMode("settings")}
+                type="button"
+              >
+                {text.settings}
               </button>
             </div>
           </div>
         </div>
       </header>
+
+      {transientSuccess ? (
+        <section className="banner banner--success">{transientSuccess}</section>
+      ) : null}
 
       {error ? <section className="banner banner--error">{error}</section> : null}
 
@@ -619,13 +839,40 @@ export default function App() {
           <section className="metric-grid">
             <article className="metric-card metric-card--remaining">
               <div className="info-card__label">{metricPresentation.label}</div>
-              <div className={metricPresentation.valueClassName}>
-                {metricPresentation.value}
+              <div className="metric-card__remaining-layout">
+                <div className="metric-ring" aria-label={text.remainingPercent}>
+                  <svg className="metric-ring__svg" viewBox="0 0 140 140" role="img">
+                    <circle
+                      className="metric-ring__track"
+                      cx="70"
+                      cy="70"
+                      r={ringRadius}
+                    />
+                    <circle
+                      className="metric-ring__progress"
+                      cx="70"
+                      cy="70"
+                      r={ringRadius}
+                      style={{
+                        strokeDasharray: ringCircumference,
+                        strokeDashoffset: ringStrokeOffset
+                      }}
+                    />
+                  </svg>
+                  <div className="metric-ring__center">
+                    <span>{ringPercentLabel}</span>
+                  </div>
+                </div>
+                <div className="metric-card__remaining-content">
+                  <div className={metricPresentation.valueClassName}>
+                    {metricPresentation.value}
+                  </div>
+                  <p className="metric-card__meta">{metricPresentation.meta}</p>
+                  {metricPresentation.submeta ? (
+                    <p className="metric-card__submeta">{metricPresentation.submeta}</p>
+                  ) : null}
+                </div>
               </div>
-              <p className="metric-card__meta">{metricPresentation.meta}</p>
-              {metricPresentation.submeta ? (
-                <p className="metric-card__submeta">{metricPresentation.submeta}</p>
-              ) : null}
             </article>
 
             <article className="metric-card">
@@ -793,7 +1040,7 @@ export default function App() {
             </article>
           ) : null}
         </section>
-      ) : (
+      ) : viewMode === "details" ? (
         <section className="details-view">
           <article className="detail-panel">
             <div className="detail-panel__header">
@@ -1078,6 +1325,73 @@ export default function App() {
             ) : (
               <p className="empty-state">{text.noRawMetadata}</p>
             )}
+          </article>
+        </section>
+      ) : (
+        <section className="settings-view">
+          <article className="detail-panel settings-panel">
+            <div className="detail-panel__header">
+              <div>
+                <div className="detail-panel__title">{text.settings}</div>
+                <div className="detail-panel__headline">{text.appearance}</div>
+              </div>
+            </div>
+
+            <div className="settings-grid">
+              <label className="settings-field">
+                <span>{text.language}</span>
+                <select
+                  className="settings-select"
+                  value={locale}
+                  onChange={(event) => setLocale(event.target.value as AppLocale)}
+                >
+                  <option value="en">English</option>
+                  <option value="zh-CN">简体中文</option>
+                </select>
+              </label>
+
+              <div className="settings-field">
+                <span>{text.theme}</span>
+                <div className="segment-control">
+                  <button
+                    className={`segment-control__item ${
+                      themePreference === "system"
+                        ? "segment-control__item--active"
+                        : ""
+                    }`}
+                    onClick={() => setThemePreference("system")}
+                    type="button"
+                  >
+                    {text.themeSystem}
+                  </button>
+                  <button
+                    className={`segment-control__item ${
+                      themePreference === "dark" ? "segment-control__item--active" : ""
+                    }`}
+                    onClick={() => setThemePreference("dark")}
+                    type="button"
+                  >
+                    {text.themeDark}
+                  </button>
+                  <button
+                    className={`segment-control__item ${
+                      themePreference === "light"
+                        ? "segment-control__item--active"
+                        : ""
+                    }`}
+                    onClick={() => setThemePreference("light")}
+                    type="button"
+                  >
+                    {text.themeLight}
+                  </button>
+                </div>
+                <p className="settings-hint">
+                  {themePreference === "system"
+                    ? `${text.themeCurrent} ${resolvedTheme === "dark" ? text.themeDark : text.themeLight}`
+                    : `${text.themeCurrent} ${themePreference === "dark" ? text.themeDark : text.themeLight}`}
+                </p>
+              </div>
+            </div>
           </article>
         </section>
       )}

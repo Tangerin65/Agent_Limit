@@ -678,6 +678,7 @@ export default function App() {
     selectedProvider,
     selectedSnapshot
   );
+  const showRemainingRing = selectedProvider !== "custom-provider";
   const remainingRingPercent = deriveRemainingRingPercent(selectedSnapshot);
   const ringRadius = 58;
   const ringCircumference = 2 * Math.PI * ringRadius;
@@ -737,9 +738,7 @@ export default function App() {
                   src={getProviderLogo(
                     provider.id,
                     provider.id === selectedProvider ? selectedSnapshot : null,
-                    provider.id === selectedProvider
-                      ? getActiveProviderSettings(providerSettings, provider.id)
-                      : null
+                    getActiveProviderSettings(providerSettings, provider.id)
                   )}
                 />
                 <span className="provider-switch__label">{provider.name}</span>
@@ -840,29 +839,31 @@ export default function App() {
             <article className="metric-card metric-card--remaining">
               <div className="info-card__label">{metricPresentation.label}</div>
               <div className="metric-card__remaining-layout">
-                <div className="metric-ring" aria-label={text.remainingPercent}>
-                  <svg className="metric-ring__svg" viewBox="0 0 140 140" role="img">
-                    <circle
-                      className="metric-ring__track"
-                      cx="70"
-                      cy="70"
-                      r={ringRadius}
-                    />
-                    <circle
-                      className="metric-ring__progress"
-                      cx="70"
-                      cy="70"
-                      r={ringRadius}
-                      style={{
-                        strokeDasharray: ringCircumference,
-                        strokeDashoffset: ringStrokeOffset
-                      }}
-                    />
-                  </svg>
-                  <div className="metric-ring__center">
-                    <span>{ringPercentLabel}</span>
+                {showRemainingRing ? (
+                  <div className="metric-ring" aria-label={text.remainingPercent}>
+                    <svg className="metric-ring__svg" viewBox="0 0 140 140" role="img">
+                      <circle
+                        className="metric-ring__track"
+                        cx="70"
+                        cy="70"
+                        r={ringRadius}
+                      />
+                      <circle
+                        className="metric-ring__progress"
+                        cx="70"
+                        cy="70"
+                        r={ringRadius}
+                        style={{
+                          strokeDasharray: ringCircumference,
+                          strokeDashoffset: ringStrokeOffset
+                        }}
+                      />
+                    </svg>
+                    <div className="metric-ring__center">
+                      <span>{ringPercentLabel}</span>
+                    </div>
                   </div>
-                </div>
+                ) : null}
                 <div className="metric-card__remaining-content">
                   <div className={metricPresentation.valueClassName}>
                     {metricPresentation.value}

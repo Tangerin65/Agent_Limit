@@ -17,6 +17,10 @@
   --shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
   --ring-track: rgba(164, 196, 210, 0.2);
   --ring-progress: #ffb703;
+  --topbar-control-bg: rgba(7, 18, 28, 0.82);
+  --secondary-button-bg: rgba(9, 22, 34, 0.9);
+  --secondary-button-active-bg: rgba(255, 183, 3, 0.2);
+  --secondary-button-active-border: rgba(255, 183, 3, 0.42);
   font-family:
     "Microsoft YaHei UI",
     "Microsoft YaHei",
@@ -54,6 +58,10 @@
   --shadow: 0 24px 56px rgba(10, 24, 38, 0.12);
   --ring-track: rgba(95, 116, 136, 0.22);
   --ring-progress: #d97706;
+  --topbar-control-bg: rgba(255, 255, 255, 0.9);
+  --secondary-button-bg: rgba(255, 255, 255, 0.95);
+  --secondary-button-active-bg: rgba(217, 119, 6, 0.16);
+  --secondary-button-active-border: rgba(217, 119, 6, 0.38);
 }
 
 * {
@@ -170,7 +178,7 @@ pre {
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: rgba(7, 18, 28, 0.82);
+  background: var(--topbar-control-bg);
   box-shadow: var(--shadow);
 }
 
@@ -235,12 +243,12 @@ pre {
 .secondary-button {
   border: 1px solid var(--border);
   color: var(--text);
-  background: rgba(9, 22, 34, 0.9);
+  background: var(--secondary-button-bg);
 }
 
 .secondary-button--active {
-  border-color: rgba(255, 183, 3, 0.42);
-  background: rgba(255, 183, 3, 0.2);
+  border-color: var(--secondary-button-active-border);
+  background: var(--secondary-button-active-bg);
 }
 
 .primary-button:hover:enabled,

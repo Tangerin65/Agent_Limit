@@ -25,7 +25,9 @@ import {
   getProviderSettings,
   getRegisteredProviders,
   refreshProvider,
-  saveProviderSettings
+  saveDesktopWidgetSettings,
+  saveProviderSettings,
+  setActiveCustomProviderEntry
 } from "./lib/api";
 import type {
   ApiKeyStatus,
@@ -37,6 +39,7 @@ import type {
 } from "./types/provider";
 
 const DEFAULT_PROVIDER = "codex";
+const CUSTOM_PROVIDER_PAGE_SIZE = 4;
 const THEME_PREFERENCE_STORAGE_KEY = "agent-limit.theme-preference";
 
 type ViewMode = "dashboard" | "details" | "settings";
@@ -243,6 +246,7 @@ function getProviderSettingsPayload(
     customDisplayName: string;
     customBaseUrl: string;
     customApiKey: string;
+    customEntryId: string | null;
   }
 ): ProviderSettingsInput {
   if (providerId === "openrouter") {
@@ -254,8 +258,25 @@ function getProviderSettingsPayload(
   return {
     displayName: values.customDisplayName,
     baseUrl: values.customBaseUrl,
-    apiKey: values.customApiKey
+    apiKey: values.customApiKey,
+    entryId: values.customEntryId
   };
+}
+
+function findCustomProviderEntry(
+  settings: ApiKeyStatus | null,
+  entryId: string | null
+) {
+  if (!entryId) {
+    return null;
+  }
+
+  return settings?.savedEntries.find((entry) => entry.id === entryId) ?? null;
+}
+
+function clampEntryPage(page: number, totalEntries: number) {
+  const maxPage = Math.max(0, Math.ceil(totalEntries / CUSTOM_PROVIDER_PAGE_SIZE) - 1);
+  return Math.min(Math.max(0, page), maxPage);
 }
 
 function readStoredThemePreference(): ThemePreference {
@@ -418,6 +439,8 @@ export default function App() {
   const [customDisplayName, setCustomDisplayName] = useState("");
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const [customApiKey, setCustomApiKey] = useState("");
+  const [customEditingEntryId, setCustomEditingEntryId] = useState<string | null>(null);
+  const [customEntryPage, setCustomEntryPage] = useState(0);
 
   const text = getTranslation(locale);
   const resolvedTheme: ThemeMode =
@@ -432,10 +455,15 @@ export default function App() {
       setCustomDisplayName("");
       setCustomBaseUrl("");
       setCustomApiKey("");
+      setCustomEditingEntryId(null);
     }
   };
 
-  const hydrateEditableValues = (providerId: string, settings: ApiKeyStatus | null) => {
+  const hydrateEditableValues = (
+    providerId: string,
+    settings: ApiKeyStatus | null,
+    entryId?: string | null
+  ) => {
     setProviderFormError(null);
 
     if (providerId === "openrouter") {
@@ -443,9 +471,11 @@ export default function App() {
       return;
     }
 
-    setCustomDisplayName(settings?.displayName ?? "");
-    setCustomBaseUrl(settings?.baseUrl ?? "");
+    const targetEntry = findCustomProviderEntry(settings, entryId ?? settings?.activeEntryId ?? null);
+    setCustomDisplayName(targetEntry?.displayName ?? settings?.displayName ?? "");
+    setCustomBaseUrl(targetEntry?.baseUrl ?? settings?.baseUrl ?? "");
     setCustomApiKey("");
+    setCustomEditingEntryId(targetEntry?.id ?? null);
   };
 
   const handleRefresh = async (
@@ -496,13 +526,18 @@ export default function App() {
         openrouterApiKey,
         customDisplayName,
         customBaseUrl,
-        customApiKey
+        customApiKey,
+        customEntryId: customEditingEntryId
       });
 
       const settings = await saveProviderSettings(providerId, payload, locale);
       setProviderSettings(settings);
       setEditingProviderId(null);
+      setCustomEditingEntryId(settings.customProvider.activeEntryId ?? null);
       resetProviderForm(providerId);
+      setCustomEntryPage((currentPage) =>
+        clampEntryPage(currentPage, settings.customProvider.savedEntries.length)
+      );
       const refreshed = await handleRefresh(providerId, locale);
 
       if (providerId === "custom-provider" && refreshed?.quota?.status === "available") {
@@ -524,10 +559,18 @@ export default function App() {
     setIsClearingSettings(true);
 
     try {
-      const settings = await clearProviderSettings(providerId, locale);
+      const entryId =
+        providerId === "custom-provider"
+          ? activeProviderSetup?.activeEntryId ?? customEditingEntryId
+          : null;
+      const settings = await clearProviderSettings(providerId, entryId ?? null, locale);
       setProviderSettings(settings);
       setEditingProviderId(null);
+      setCustomEditingEntryId(settings.customProvider.activeEntryId ?? null);
       resetProviderForm(providerId);
+      setCustomEntryPage((currentPage) =>
+        clampEntryPage(currentPage, settings.customProvider.savedEntries.length)
+      );
       await handleRefresh(providerId, locale);
     } catch (clearError) {
       setProviderFormError(
@@ -535,6 +578,56 @@ export default function App() {
       );
     } finally {
       setIsClearingSettings(false);
+    }
+  };
+
+  const handleSelectCustomEntry = async (entryId: string) => {
+    if (selectedProvider !== "custom-provider") {
+      return;
+    }
+
+    setError(null);
+    setProviderFormError(null);
+
+    try {
+      const settings = await setActiveCustomProviderEntry(entryId, locale);
+      setProviderSettings(settings);
+      setCustomEditingEntryId(entryId);
+      setEditingProviderId(null);
+      const selectedIndex = settings.customProvider.savedEntries.findIndex(
+        (entry) => entry.id === entryId
+      );
+      if (selectedIndex >= 0) {
+        setCustomEntryPage(
+          clampEntryPage(
+            Math.floor(selectedIndex / CUSTOM_PROVIDER_PAGE_SIZE),
+            settings.customProvider.savedEntries.length
+          )
+        );
+      }
+      await handleRefresh("custom-provider", locale);
+    } catch (selectionError) {
+      setProviderFormError(
+        selectionError instanceof Error ? selectionError.message : text.initFailed
+      );
+    }
+  };
+
+  const handleDesktopWidgetVisibilityChange = async (visible: boolean) => {
+    try {
+      const settings = await saveDesktopWidgetSettings(
+        {
+          visible,
+          providerId:
+            providerSettings?.desktopWidget.providerId ??
+            selectedProvider ??
+            DEFAULT_PROVIDER
+        },
+        locale
+      );
+      setProviderSettings(settings);
+    } catch (widgetError) {
+      setError(widgetError instanceof Error ? widgetError.message : text.initFailed);
     }
   };
 
@@ -658,6 +751,16 @@ export default function App() {
     };
   }, [selectedProvider, snapshot]);
 
+  useEffect(() => {
+    if (selectedProvider !== "custom-provider") {
+      return;
+    }
+
+    setCustomEntryPage((currentPage) =>
+      clampEntryPage(currentPage, providerSettings?.customProvider.savedEntries.length ?? 0)
+    );
+  }, [providerSettings?.customProvider.savedEntries.length, selectedProvider]);
+
   const activeProvider =
     providers.find((provider) => provider.id === selectedProvider) ?? null;
   const selectedSnapshot = getSelectedSnapshot(snapshot, selectedProvider);
@@ -670,6 +773,22 @@ export default function App() {
     selectedSnapshot?.provider.status ?? activeProvider?.status
   );
   const environmentWarnings = environmentDiagnostics?.warnings ?? [];
+  const customProviderEntries = activeProviderSetup?.savedEntries ?? [];
+  const activeCustomProviderEntryId = activeProviderSetup?.activeEntryId ?? null;
+  const clampedCustomEntryPage = clampEntryPage(
+    customEntryPage,
+    customProviderEntries.length
+  );
+  const customEntryStart = clampedCustomEntryPage * CUSTOM_PROVIDER_PAGE_SIZE;
+  const visibleCustomProviderEntries = customProviderEntries.slice(
+    customEntryStart,
+    customEntryStart + CUSTOM_PROVIDER_PAGE_SIZE
+  );
+  const customEntryPageCount = Math.max(
+    1,
+    Math.ceil(customProviderEntries.length / CUSTOM_PROVIDER_PAGE_SIZE)
+  );
+  const desktopWidgetVisible = providerSettings?.desktopWidget.visible ?? false;
   const rawMeta = selectedSnapshot?.rawMeta
     ? JSON.stringify(selectedSnapshot.rawMeta, null, 2)
     : null;
@@ -698,8 +817,21 @@ export default function App() {
 
   const startEditingSelectedProvider = () => {
     const currentSettings = getActiveProviderSettings(providerSettings, selectedProvider);
-    hydrateEditableValues(selectedProvider, currentSettings);
+    hydrateEditableValues(
+      selectedProvider,
+      currentSettings,
+      currentSettings?.activeEntryId ?? null
+    );
     setEditingProviderId(selectedProvider);
+  };
+
+  const startAddingCustomProviderEntry = () => {
+    setProviderFormError(null);
+    setCustomDisplayName("");
+    setCustomBaseUrl("");
+    setCustomApiKey("");
+    setCustomEditingEntryId(null);
+    setEditingProviderId("custom-provider");
   };
 
   return (
@@ -749,40 +881,42 @@ export default function App() {
           <div className="topbar__utility-row">
             <div className="topbar__actions">
               <button
-                className="primary-button"
+                className="primary-button primary-button--refresh"
                 disabled={!selectedProvider || isRefreshing || !initialized}
                 onClick={() => void handleRefresh(selectedProvider, locale)}
                 type="button"
               >
                 {isRefreshing ? text.refreshing : text.refresh}
               </button>
-              <button
-                className={`secondary-button ${
-                  viewMode === "dashboard" ? "secondary-button--active" : ""
-                }`}
-                onClick={() => setViewMode("dashboard")}
-                type="button"
-              >
-                {text.dashboard}
-              </button>
-              <button
-                className={`secondary-button ${
-                  viewMode === "details" ? "secondary-button--active" : ""
-                }`}
-                onClick={() => setViewMode("details")}
-                type="button"
-              >
-                {text.details}
-              </button>
-              <button
-                className={`secondary-button ${
-                  viewMode === "settings" ? "secondary-button--active" : ""
-                }`}
-                onClick={() => setViewMode("settings")}
-                type="button"
-              >
-                {text.settings}
-              </button>
+              <div className="segment-control topbar__nav">
+                <button
+                  className={`segment-control__item ${
+                    viewMode === "dashboard" ? "segment-control__item--active" : ""
+                  }`}
+                  onClick={() => setViewMode("dashboard")}
+                  type="button"
+                >
+                  {text.dashboard}
+                </button>
+                <button
+                  className={`segment-control__item ${
+                    viewMode === "details" ? "segment-control__item--active" : ""
+                  }`}
+                  onClick={() => setViewMode("details")}
+                  type="button"
+                >
+                  {text.details}
+                </button>
+                <button
+                  className={`segment-control__item ${
+                    viewMode === "settings" ? "segment-control__item--active" : ""
+                  }`}
+                  onClick={() => setViewMode("settings")}
+                  type="button"
+                >
+                  {text.settings}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -913,6 +1047,72 @@ export default function App() {
                 </section>
               ) : null}
 
+              {selectedProvider === "custom-provider" ? (
+                <div className="custom-provider-browser">
+                  <div className="custom-provider-browser__header">
+                    <div className="detail-panel__title">{text.savedProviders}</div>
+                    <div className="custom-provider-browser__controls">
+                      <button
+                        aria-label={text.previousEntries}
+                        className="secondary-button secondary-button--icon"
+                        disabled={clampedCustomEntryPage === 0}
+                        onClick={() =>
+                          setCustomEntryPage((page) =>
+                            clampEntryPage(page - 1, customProviderEntries.length)
+                          )
+                        }
+                        type="button"
+                      >
+                        {"<"}
+                      </button>
+                      <span className="setup-panel__hint">
+                        {text.entryPagination
+                          .replace("{current}", (clampedCustomEntryPage + 1).toString())
+                          .replace("{total}", customEntryPageCount.toString())}
+                      </span>
+                      <button
+                        aria-label={text.nextEntries}
+                        className="secondary-button secondary-button--icon"
+                        disabled={clampedCustomEntryPage >= customEntryPageCount - 1}
+                        onClick={() =>
+                          setCustomEntryPage((page) =>
+                            clampEntryPage(page + 1, customProviderEntries.length)
+                          )
+                        }
+                        type="button"
+                      >
+                        {">"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {customProviderEntries.length ? (
+                    <div className="custom-provider-browser__grid">
+                      {visibleCustomProviderEntries.map((entry) => (
+                        <button
+                          key={entry.id}
+                          className={`custom-provider-card ${
+                            entry.id === activeCustomProviderEntryId
+                              ? "custom-provider-card--active"
+                              : ""
+                          }`}
+                          onClick={() => void handleSelectCustomEntry(entry.id)}
+                          type="button"
+                        >
+                          <span className="custom-provider-card__title">
+                            {entry.displayName}
+                          </span>
+                          <span className="custom-provider-card__base">{entry.baseUrl}</span>
+                          <span className="custom-provider-card__meta">{entry.keyMask}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">{text.noSavedProviders}</p>
+                  )}
+                </div>
+              ) : null}
+
               {showSetupForm ? (
                 <div className="setup-form">
                   {selectedProvider === "custom-provider" ? (
@@ -973,17 +1173,25 @@ export default function App() {
                     >
                       {isSavingSettings ? text.saving : text.save}
                     </button>
-                    {activeProviderSetup?.configured ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        setEditingProviderId(null);
+                        setProviderFormError(null);
+                        resetProviderForm(selectedProvider);
+                      }}
+                      type="button"
+                    >
+                      {text.cancel}
+                    </button>
+                    {selectedProvider === "custom-provider" && customEditingEntryId ? (
                       <button
                         className="secondary-button"
-                        onClick={() => {
-                          setEditingProviderId(null);
-                          setProviderFormError(null);
-                          resetProviderForm(selectedProvider);
-                        }}
+                        disabled={isClearingSettings}
+                        onClick={() => void handleClearSettings(selectedProvider)}
                         type="button"
                       >
-                        {text.cancel}
+                        {isClearingSettings ? text.refreshing : text.deleteEntry}
                       </button>
                     ) : null}
                   </div>
@@ -1014,13 +1222,34 @@ export default function App() {
                   </dl>
 
                   <div className="setup-panel__actions">
-                    <button
-                      className="secondary-button"
-                      onClick={startEditingSelectedProvider}
-                      type="button"
-                    >
-                      {text.edit}
-                    </button>
+                    {selectedProvider === "custom-provider" && activeCustomProviderEntryId ? (
+                      <button
+                        className="secondary-button"
+                        onClick={startEditingSelectedProvider}
+                        type="button"
+                      >
+                        {text.edit}
+                      </button>
+                    ) : selectedProvider !== "custom-provider" ? (
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          startEditingSelectedProvider();
+                        }}
+                        type="button"
+                      >
+                        {text.edit}
+                      </button>
+                    ) : null}
+                    {selectedProvider === "custom-provider" ? (
+                      <button
+                        className="primary-button"
+                        onClick={startAddingCustomProviderEntry}
+                        type="button"
+                      >
+                        {text.addProvider}
+                      </button>
+                    ) : null}
                     {activeProviderSetup?.hasLocalConfig ? (
                       <button
                         className="secondary-button"
@@ -1028,7 +1257,11 @@ export default function App() {
                         onClick={() => void handleClearSettings(selectedProvider)}
                         type="button"
                       >
-                        {isClearingSettings ? text.refreshing : text.clearLocalConfig}
+                        {isClearingSettings
+                          ? text.refreshing
+                          : selectedProvider === "custom-provider"
+                            ? text.deleteEntry
+                            : text.clearLocalConfig}
                       </button>
                     ) : null}
                   </div>
@@ -1392,6 +1625,25 @@ export default function App() {
                     : `${text.themeCurrent} ${themePreference === "dark" ? text.themeDark : text.themeLight}`}
                 </p>
               </div>
+
+              <label className="settings-field settings-field--checkbox">
+                <span>{text.desktopWidget}</span>
+                <div className="settings-checkbox">
+                  <input
+                    checked={desktopWidgetVisible}
+                    onChange={(event) =>
+                      void handleDesktopWidgetVisibilityChange(event.target.checked)
+                    }
+                    type="checkbox"
+                  />
+                  <span>
+                    {desktopWidgetVisible
+                      ? text.desktopWidgetVisible
+                      : text.desktopWidgetHidden}
+                  </span>
+                </div>
+                <p className="settings-hint">{text.desktopWidgetHint}</p>
+              </label>
             </div>
           </article>
         </section>

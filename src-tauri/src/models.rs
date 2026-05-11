@@ -115,6 +115,22 @@ pub struct EnvironmentDiagnostics {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SavedProviderEntrySummary {
+    pub id: String,
+    pub display_name: String,
+    pub base_url: String,
+    pub key_mask: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopWidgetSettings {
+    pub visible: bool,
+    pub provider_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiKeyStatus {
     pub configured: bool,
     pub source: Option<String>,
@@ -122,6 +138,8 @@ pub struct ApiKeyStatus {
     pub display_name: Option<String>,
     pub base_url: Option<String>,
     pub has_local_config: bool,
+    pub active_entry_id: Option<String>,
+    pub saved_entries: Vec<SavedProviderEntrySummary>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -129,6 +147,7 @@ pub struct ApiKeyStatus {
 pub struct ApiPlatformsEnvironmentStatus {
     pub openrouter: ApiKeyStatus,
     pub custom_provider: ApiKeyStatus,
+    pub desktop_widget: DesktopWidgetSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -137,4 +156,12 @@ pub struct ProviderSettingsInput {
     pub api_key: Option<String>,
     pub display_name: Option<String>,
     pub base_url: Option<String>,
+    pub entry_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopWidgetSettingsInput {
+    pub visible: Option<bool>,
+    pub provider_id: Option<String>,
 }

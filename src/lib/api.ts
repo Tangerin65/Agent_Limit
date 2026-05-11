@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ApiPlatformsEnvironmentStatus,
+  DesktopWidgetSettingsInput,
   EnvironmentDiagnostics,
   ProviderDescriptor,
   ProviderSettingsInput,
@@ -43,7 +44,22 @@ export function saveProviderSettings(
 
 export function clearProviderSettings(
   providerId: string,
+  entryId: string | null,
   locale: AppLocale
 ): Promise<ApiPlatformsEnvironmentStatus> {
-  return invoke("clear_provider_settings", { providerId, locale });
+  return invoke("clear_provider_settings", { providerId, entryId, locale });
+}
+
+export function setActiveCustomProviderEntry(
+  entryId: string,
+  locale: AppLocale
+): Promise<ApiPlatformsEnvironmentStatus> {
+  return invoke("set_active_custom_provider_entry", { entryId, locale });
+}
+
+export function saveDesktopWidgetSettings(
+  payload: DesktopWidgetSettingsInput,
+  locale: AppLocale
+): Promise<ApiPlatformsEnvironmentStatus> {
+  return invoke("save_desktop_widget_settings", { payload, locale });
 }

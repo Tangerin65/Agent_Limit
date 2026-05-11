@@ -727,6 +727,7 @@ fn build_snapshot_from_refresh(
             "baseUrl": config.base_url,
             "source": config.source,
             "keyMask": config.key_mask,
+            "activeEntryId": config.entry_id,
             "detectedVendor": vendor.id(),
             "balanceEndpoint": refresh.balance_endpoint,
             "endpointAttempts": refresh.endpoint_attempts,
@@ -832,6 +833,7 @@ mod tests {
         let snapshot = build_snapshot_from_refresh(
             descriptor(),
             ResolvedCustomProviderConfig {
+                entry_id: Some("entry-1".to_string()),
                 display_name: "Test Provider".to_string(),
                 base_url: "https://example.com/v1".to_string(),
                 api_key: "sk-test".to_string(),
@@ -1005,6 +1007,7 @@ mod tests {
         let snapshot = build_snapshot_from_refresh(
             descriptor(),
             ResolvedCustomProviderConfig {
+                entry_id: None,
                 display_name: CUSTOM_PROVIDER_FALLBACK_NAME.to_string(),
                 base_url: "https://example.com/v1".to_string(),
                 api_key: "sk-test".to_string(),

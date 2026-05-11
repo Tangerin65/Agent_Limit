@@ -99,15 +99,36 @@ export interface ApiKeyStatus {
   displayName?: string | null;
   baseUrl?: string | null;
   hasLocalConfig: boolean;
+  activeEntryId?: string | null;
+  savedEntries: CustomProviderEntrySummary[];
+}
+
+export interface CustomProviderEntrySummary {
+  id: string;
+  displayName: string;
+  baseUrl: string;
+  keyMask: string;
+}
+
+export interface DesktopWidgetSettings {
+  visible: boolean;
+  providerId?: string | null;
 }
 
 export interface ApiPlatformsEnvironmentStatus {
   openrouter: ApiKeyStatus;
   customProvider: ApiKeyStatus;
+  desktopWidget: DesktopWidgetSettings;
 }
 
 export interface ProviderSettingsInput {
   apiKey?: string | null;
   displayName?: string | null;
   baseUrl?: string | null;
+  entryId?: string | null;
+}
+
+export interface DesktopWidgetSettingsInput {
+  visible?: boolean;
+  providerId?: string | null;
 }

@@ -111,6 +111,19 @@ type TranslationSet = {
   configured: string;
   notConfigured: string;
   localConfigOnlyAction: string;
+  savedProviders: string;
+  noSavedProviders: string;
+  previousEntries: string;
+  nextEntries: string;
+  entryPagination: string;
+  addProvider: string;
+  deleteEntry: string;
+  desktopWidget: string;
+  desktopWidgetVisible: string;
+  desktopWidgetHidden: string;
+  desktopWidgetHint: string;
+  previousProvider: string;
+  nextProvider: string;
   name: string;
   tier: string;
   cycle: string;
@@ -232,6 +245,19 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     configured: "已配置",
     notConfigured: "未配置",
     localConfigOnlyAction: "仅清除本地配置；若存在环境变量，将自动回退到环境变量。",
+    savedProviders: "已保存 Provider",
+    noSavedProviders: "当前还没有已保存的自定义 Provider。",
+    previousEntries: "上一页",
+    nextEntries: "下一页",
+    entryPagination: "第 {current} / {total} 页",
+    addProvider: "新增 Provider",
+    deleteEntry: "删除当前条目",
+    desktopWidget: "桌面插件",
+    desktopWidgetVisible: "已显示",
+    desktopWidgetHidden: "已隐藏",
+    desktopWidgetHint: "桌面插件只显示单个 Agent 的额度饼图、剩余额度与手动刷新。",
+    previousProvider: "上一个 Provider",
+    nextProvider: "下一个 Provider",
     name: "名称",
     tier: "层级",
     cycle: "周期",
@@ -351,6 +377,19 @@ const TRANSLATIONS: Record<AppLocale, TranslationSet> = {
     configured: "Configured",
     notConfigured: "Not Configured",
     localConfigOnlyAction: "This only clears local config. If an environment variable exists, the app will fall back to it automatically.",
+    savedProviders: "Saved Providers",
+    noSavedProviders: "No saved custom providers yet.",
+    previousEntries: "Previous page",
+    nextEntries: "Next page",
+    entryPagination: "Page {current} / {total}",
+    addProvider: "Add Provider",
+    deleteEntry: "Delete Current Entry",
+    desktopWidget: "Desktop Widget",
+    desktopWidgetVisible: "Visible",
+    desktopWidgetHidden: "Hidden",
+    desktopWidgetHint: "The desktop widget only shows one agent ring, the remaining quota, and a manual refresh button.",
+    previousProvider: "Previous Provider",
+    nextProvider: "Next Provider",
     name: "Name",
     tier: "Tier",
     cycle: "Cycle",

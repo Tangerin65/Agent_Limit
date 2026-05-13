@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AIHUBMIX">
+  <defs>
+    <linearGradient id="aihubmixGrad" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#aihubmixGrad)"/>
+  <path d="M32 88L54 38h10l22 50h-11l-4-10H47l-4 10H32zm19-20h16l-8-20-8 20z" fill="#ffffff"/>
+  <circle cx="90" cy="40" r="8" fill="#ffffff" fill-opacity="0.9"/>
+</svg>

@@ -5,7 +5,7 @@ use walkdir::WalkDir;
 use crate::locale::AppLocale;
 use crate::models::{
     ApiKeyStatus, ApiPlatformsEnvironmentStatus, CodexEnvironmentStatus, CopilotEnvironmentStatus,
-    EnvironmentDiagnostics, WebView2Status,
+    DesktopWidgetSettings, EnvironmentDiagnostics, WebView2Status,
 };
 use crate::provider_settings::get_provider_settings;
 
@@ -74,6 +74,8 @@ fn inspect_api_platforms() -> ApiPlatformsEnvironmentStatus {
             display_name: None,
             base_url: None,
             has_local_config: false,
+            active_entry_id: None,
+            saved_entries: Vec::new(),
         },
         custom_provider: ApiKeyStatus {
             configured: false,
@@ -82,6 +84,12 @@ fn inspect_api_platforms() -> ApiPlatformsEnvironmentStatus {
             display_name: None,
             base_url: None,
             has_local_config: false,
+            active_entry_id: None,
+            saved_entries: Vec::new(),
+        },
+        desktop_widget: DesktopWidgetSettings {
+            visible: false,
+            provider_id: Some("codex".to_string()),
         },
     })
 }

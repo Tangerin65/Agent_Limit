@@ -97,6 +97,7 @@ fn save_desktop_widget_settings(
 fn ensure_desktop_widget_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(DESKTOP_WIDGET_LABEL) {
         window.show().map_err(|error| error.to_string())?;
+        let _ = window.set_focus();
         return Ok(());
     }
 
@@ -110,17 +111,17 @@ fn ensure_desktop_widget_window(app: &tauri::AppHandle) -> Result<(), String> {
     .resizable(false)
     .skip_taskbar(true)
     .always_on_top(true)
-    .inner_size(320.0, 220.0)
-    .min_inner_size(320.0, 220.0)
+    .inner_size(420.0, 300.0)
+    .min_inner_size(420.0, 300.0)
     .build()
     .map_err(|error| error.to_string())?;
 
     Ok(())
 }
 
-fn close_desktop_widget_window(app: &tauri::AppHandle) -> Result<(), String> {
+fn hide_desktop_widget_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(DESKTOP_WIDGET_LABEL) {
-        window.close().map_err(|error| error.to_string())?;
+        window.hide().map_err(|error| error.to_string())?;
     }
 
     Ok(())
@@ -133,7 +134,7 @@ fn sync_desktop_widget_window(
     if settings.desktop_widget.visible {
         ensure_desktop_widget_window(app)
     } else {
-        close_desktop_widget_window(app)
+        hide_desktop_widget_window(app)
     }
 }
 

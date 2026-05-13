@@ -22,6 +22,7 @@ enum CustomVendor {
     DeepSeek,
     Kimi,
     Glm,
+    Aihubmix,
     Unknown,
 }
 
@@ -31,6 +32,7 @@ impl CustomVendor {
             Self::DeepSeek => "deepseek",
             Self::Kimi => "kimi",
             Self::Glm => "glm",
+            Self::Aihubmix => "aihubmix",
             Self::Unknown => "unknown",
         }
     }
@@ -40,8 +42,13 @@ impl CustomVendor {
             Self::DeepSeek => "DeepSeek",
             Self::Kimi => "Kimi",
             Self::Glm => "GLM",
+            Self::Aihubmix => "AIHUBMIX",
             Self::Unknown => "OpenAI-compatible",
         }
+    }
+
+    fn supports_direct_quota(self) -> bool {
+        matches!(self, Self::DeepSeek | Self::Kimi | Self::Glm)
     }
 
     fn balance_endpoints(self, base_url: &str) -> Vec<String> {
@@ -54,6 +61,7 @@ impl CustomVendor {
                 format!("{origin}/api/paas/v4/user/balance"),
                 format!("{origin}/api/monitor/usage/quota/limit"),
             ],
+            Self::Aihubmix => vec![validation_endpoint_for_base_url(base_url)],
             Self::Unknown => vec![validation_endpoint_for_base_url(base_url)],
         }
     }
@@ -122,7 +130,7 @@ impl ProviderAdapter for CustomProvider {
                                 config.base_url, config.display_name
                             ),
                         )
-                    } else {
+                    } else if vendor.supports_direct_quota() {
                         locale.text(
                             &format!(
                                 "{} is auto-detected from {}. The app will query vendor balance endpoints directly.",
@@ -135,6 +143,19 @@ impl ProviderAdapter for CustomProvider {
                                 vendor.display_name()
                             ),
                         )
+                    } else {
+                        locale.text(
+                            &format!(
+                                "{} is auto-detected from {}. The app validates OpenAI-compatible access, while quota remains in generic mode.",
+                                vendor.display_name(),
+                                config.base_url
+                            ),
+                            &format!(
+                                "已根据 {} 自动识别为 {}。应用会校验 OpenAI-compatible 访问状态，配额暂按通用模式展示。",
+                                config.base_url,
+                                vendor.display_name()
+                            ),
+                        )
                     }
                 }
                 None => custom_provider_missing_configuration_warning(locale),
@@ -142,7 +163,7 @@ impl ProviderAdapter for CustomProvider {
             capabilities: vec![
                 capability("account", has_config),
                 capability("plan", has_config),
-                capability("quota", has_config && vendor != CustomVendor::Unknown),
+                capability("quota", has_config && vendor.supports_direct_quota()),
             ],
         }
     }
@@ -186,10 +207,10 @@ impl ProviderAdapter for CustomProvider {
 
         let vendor = detect_vendor(&config.base_url);
         let client = build_json_client("Agent-Limit/0.1", &config.api_key)?;
-        let result = if vendor == CustomVendor::Unknown {
-            refresh_unknown_vendor(&client, locale, &config)
-        } else {
+        let result = if vendor.supports_direct_quota() {
             refresh_supported_vendor(&client, locale, &config, vendor)
+        } else {
+            refresh_unknown_vendor(&client, locale, &config, vendor)
         };
 
         Ok(build_snapshot_from_refresh(
@@ -206,6 +227,7 @@ fn refresh_unknown_vendor(
     client: &Client,
     locale: AppLocale,
     config: &ResolvedCustomProviderConfig,
+    _vendor: CustomVendor,
 ) -> VendorRefresh {
     let validation_endpoint = validation_endpoint_for_base_url(&config.base_url);
     let mut attempts = Vec::new();
@@ -393,7 +415,7 @@ fn parse_vendor_payload(
         CustomVendor::DeepSeek => parse_deepseek_payload(locale, endpoint, body),
         CustomVendor::Kimi => parse_kimi_payload(locale, endpoint, body),
         CustomVendor::Glm => parse_glm_payload(locale, endpoint, body),
-        CustomVendor::Unknown => QuotaCandidate {
+        CustomVendor::Aihubmix | CustomVendor::Unknown => QuotaCandidate {
             quota: QuotaSnapshot {
                 status: "unavailable".to_string(),
                 total: None,
@@ -758,6 +780,9 @@ fn detect_vendor(base_url: &str) -> CustomVendor {
         {
             CustomVendor::Glm
         }
+        Some(value) if value == "aihubmix.com" || value == "api.aihubmix.com" => {
+            CustomVendor::Aihubmix
+        }
         _ => CustomVendor::Unknown,
     }
 }
@@ -902,6 +927,14 @@ mod tests {
         assert_eq!(
             detect_vendor("https://api.z.ai/api/anthropic"),
             CustomVendor::Glm
+        );
+        assert_eq!(
+            detect_vendor("https://aihubmix.com/v1"),
+            CustomVendor::Aihubmix
+        );
+        assert_eq!(
+            detect_vendor("https://api.aihubmix.com/v1"),
+            CustomVendor::Aihubmix
         );
         assert_eq!(
             detect_vendor("https://example.com/v1"),

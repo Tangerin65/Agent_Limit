@@ -80,6 +80,10 @@ function buildWidgetValue(locale: AppLocale, providerId: string, snapshot: Provi
   return formatLocalizedQuotaValue(locale, quota?.remaining, quota?.unit);
 }
 
+function shouldShowRing(providerId: string) {
+  return providerId === "codex" || providerId === "github-copilot";
+}
+
 export default function WidgetApp() {
   const [locale, setLocale] = useState<AppLocale>(
     () => readStoredLocale() ?? detectSystemLocale()
@@ -116,6 +120,8 @@ export default function WidgetApp() {
     () => buildWidgetValue(locale, selectedProviderId, snapshot),
     [locale, selectedProviderId, snapshot]
   );
+  const showRing = shouldShowRing(selectedProviderId);
+  const showRemainingValue = !showRing;
 
   const refreshCurrentProvider = async (providerId: string) => {
     setError(null);
@@ -243,22 +249,21 @@ export default function WidgetApp() {
         <div className="widget-card__header">
           <button
             aria-label={text.previousProvider}
-            className="secondary-button secondary-button--icon"
+            className="widget-nav-button"
             disabled={!providers.length || isRefreshing}
             onClick={() => void selectProviderByOffset(-1)}
             type="button"
           >
             {"<"}
           </button>
-          <div className="widget-card__title-group">
-            <span className="widget-card__label">{text.desktopWidget}</span>
+          <div className="widget-card__title-group" data-tauri-drag-region>
             <strong className="widget-card__title">
               {activeProvider?.name ?? text.unavailable}
             </strong>
           </div>
           <button
             aria-label={text.nextProvider}
-            className="secondary-button secondary-button--icon"
+            className="widget-nav-button"
             disabled={!providers.length || isRefreshing}
             onClick={() => void selectProviderByOffset(1)}
             type="button"
@@ -268,32 +273,36 @@ export default function WidgetApp() {
         </div>
 
         <div className="widget-card__body">
-          <div className="widget-ring" aria-label={text.remainingPercent}>
-            <svg className="widget-ring__svg" viewBox="0 0 120 120" role="img">
-              <circle className="widget-ring__track" cx="60" cy="60" r={ringRadius} />
-              <circle
-                className="widget-ring__progress"
-                cx="60"
-                cy="60"
-                r={ringRadius}
-                style={{
-                  strokeDasharray: ringCircumference,
-                  strokeDashoffset: ringStrokeOffset
-                }}
-              />
-            </svg>
-            <div className="widget-ring__center">{ringLabel}</div>
-          </div>
+          {showRing ? (
+            <div className="widget-ring" aria-label={text.remainingPercent}>
+              <svg className="widget-ring__svg" viewBox="0 0 120 120" role="img">
+                <circle className="widget-ring__track" cx="60" cy="60" r={ringRadius} />
+                <circle
+                  className="widget-ring__progress"
+                  cx="60"
+                  cy="60"
+                  r={ringRadius}
+                  style={{
+                    strokeDasharray: ringCircumference,
+                    strokeDashoffset: ringStrokeOffset
+                  }}
+                />
+              </svg>
+              <div className="widget-ring__center">{ringLabel}</div>
+            </div>
+          ) : null}
 
-          <div className="widget-card__value-group">
-            <span className="widget-card__value-label">{text.remaining}</span>
-            <strong className="widget-card__value">{quotaValue}</strong>
-          </div>
+          {showRemainingValue ? (
+            <div className="widget-card__value-group">
+              <span className="widget-card__value-label">{text.remaining}</span>
+              <strong className="widget-card__value">{quotaValue}</strong>
+            </div>
+          ) : null}
         </div>
 
         <div className="widget-card__footer">
           <button
-            className="primary-button primary-button--refresh"
+            className="widget-refresh-button"
             disabled={!initialized || !selectedProviderId || isRefreshing}
             onClick={() => void refreshCurrentProvider(selectedProviderId)}
             type="button"

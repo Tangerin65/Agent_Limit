@@ -11,9 +11,7 @@ $safeTargets = @(
 )
 
 $deepTargets = @(
-  (Join-Path $repoRoot "node_modules"),
-  (Join-Path $repoRoot "Agent Limit.exe"),
-  (Join-Path $repoRoot "Agent Limit Setup.exe")
+  (Join-Path $repoRoot "node_modules")
 )
 
 function Remove-PathIfExists {
@@ -30,8 +28,12 @@ function Remove-PathIfExists {
     throw "Refusing to remove path outside repository root: $resolvedPath"
   }
 
-  Remove-Item -LiteralPath $resolvedPath -Recurse -Force
-  Write-Host "Removed $resolvedPath"
+  try {
+    Remove-Item -LiteralPath $resolvedPath -Recurse -Force -ErrorAction Stop
+    Write-Host "Removed $resolvedPath"
+  } catch {
+    Write-Warning "Failed to fully remove $resolvedPath. Close processes that may lock files and retry. Details: $($_.Exception.Message)"
+  }
 }
 
 foreach ($target in $safeTargets) {

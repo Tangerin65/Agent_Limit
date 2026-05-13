@@ -19,6 +19,7 @@ import customDefaultLogo from "./assets/provider-custom.svg";
 import customDeepseekLogo from "./assets/provider-deepseek.svg";
 import customKimiLogo from "./assets/provider-kimi.svg";
 import customGlmLogo from "./assets/provider-glm.svg";
+import customAihubmixLogo from "./assets/provider-aihubmix.svg";
 import {
   clearProviderSettings,
   getEnvironmentDiagnostics,
@@ -45,7 +46,7 @@ const THEME_PREFERENCE_STORAGE_KEY = "agent-limit.theme-preference";
 type ViewMode = "dashboard" | "details" | "settings";
 type ThemePreference = "system" | "dark" | "light";
 type ThemeMode = "dark" | "light";
-type CustomVendor = "deepseek" | "kimi" | "glm" | "unknown";
+type CustomVendor = "deepseek" | "kimi" | "glm" | "aihubmix" | "unknown";
 
 function getSelectedSnapshot(
   snapshot: ProviderSnapshot | null,
@@ -338,7 +339,12 @@ function detectCustomVendor(
   settings: ApiKeyStatus | null
 ): CustomVendor {
   const detectedVendor = snapshot?.rawMeta?.detectedVendor;
-  if (detectedVendor === "deepseek" || detectedVendor === "kimi" || detectedVendor === "glm") {
+  if (
+    detectedVendor === "deepseek" ||
+    detectedVendor === "kimi" ||
+    detectedVendor === "glm" ||
+    detectedVendor === "aihubmix"
+  ) {
     return detectedVendor;
   }
 
@@ -351,6 +357,9 @@ function detectCustomVendor(
   }
   if (baseUrl.includes("bigmodel") || baseUrl.includes("z.ai")) {
     return "glm";
+  }
+  if (baseUrl.includes("aihubmix.com")) {
+    return "aihubmix";
   }
 
   return "unknown";
@@ -381,6 +390,9 @@ function getProviderLogo(
     if (vendor === "glm") {
       return customGlmLogo;
     }
+    if (vendor === "aihubmix") {
+      return customAihubmixLogo;
+    }
     return customDefaultLogo;
   }
   return customDefaultLogo;
@@ -394,6 +406,8 @@ function getVendorDisplayName(vendor: CustomVendor) {
       return "Kimi";
     case "glm":
       return "GLM";
+    case "aihubmix":
+      return "AIHUBMIX";
     default:
       return "Custom Provider";
   }
